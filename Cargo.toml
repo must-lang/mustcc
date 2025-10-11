@@ -1,0 +1,14 @@
+[package]
+name = "mustcc"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+ariadne = "0.5.1"
+clap = { version = "4.5.48", features = ["derive"] }
+colored = "3.0.0"
+lalrpop-util = { version = "0.22.2", features = ["lexer", "unicode"] }
+
+
+[build-dependencies]
+lalrpop = "0.22.2"

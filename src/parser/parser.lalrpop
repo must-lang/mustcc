@@ -1,0 +1,492 @@
+use super::ast::*;
+use crate::common::{Position, Visibility, Path, Ident, PositionGenerator};
+use std::sync::Arc;
+use super::unescape_json_string;
+
+use lalrpop_util::ParseError;
+
+grammar<'err>(errors: &'err mut Vec<ParseError<usize, Token<'input>, &'static str>>, pg: &PositionGenerator);
+
+// ==== Lexer hints ============================================================
+
+match {
+    // The default whitespace skipping is disabled
+    // if an `ignore pattern` is specified
+    r"\s*" => { },
+    // Skip `# comments`
+    r"#[^\n\r]*[\n\r]*" => { },
+    "*",
+    "&",
+    "@",
+    "]",
+    "[",
+    "[]",
+    ":",
+    "::",
+    "->",
+    "=",
+    "=>",
+
+} else {
+    r#"[\!\#\$\%\&\+\-\/<=>\?@\^\|\\]+"#
+} else {
+    r#"[\!\#\$\%\&\*\+\-\/<=>\?@\^\|\\]+"#
+} else { _ }
+
+// ==== Helpers ================================================================
+
+CommaSep<T>: Vec<T> = {
+    <mut v:(<T> ",")*> <e:T?> => match e {
+        None => v,
+        Some(e) => {
+            v.push(e);
+            v
+        }
+    }
+};
+
+PlusSep<T>: Vec<T> = {
+    <mut v:(<T> "+")*> <e:T?> => match e {
+        None => v,
+        Some(e) => {
+            v.push(e);
+            v
+        }
+    }
+};
+
+SemicolonSep<T>: Vec<T> = { // (1)
+    <mut v:(<T> ";")*> <e:T?> => match e {
+        None => v,
+        Some(e) => {
+            v.push(e);
+            v
+        }
+    }
+};
+
+TwoOrMore<T>: Vec<T> = {
+    <first:T> "," <second:T> <rest: ("," <T>)*> (",")? => {
+        let mut v = Vec::new();
+        v.push(first);
+        v.push(second);
+        for t in rest {
+            v.push(t);
+        }
+        v
+    }
+};
+
+// ==== Top level ==============================================================
+
+pub File: Module = {
+    <start: @L>
+    <items: ModuleItem*>
+    <end: @R> => {
+        let name = Ident {
+            data: "<unknown>".to_string(),
+            pos: Position::nowhere(),
+        };
+        Module {
+            attributes: vec![],
+            name,
+            visibility: Visibility::Private,
+            items,
+            pos: pg.make(start, end),
+        }
+    }
+};
+
+ModuleItem: ModuleItem = {
+    <module: Module> => ModuleItem::Module(module),
+    <module_decl: ModuleDecl> => ModuleItem::ModuleDecl(module_decl),
+    <import: Import> => ModuleItem::Import(import),
+    <func: Func> => ModuleItem::Func(func),
+    <strct: Struct> => ModuleItem::Struct(strct),
+    <it: Enum> => ModuleItem::Enum(it),
+    ! => { errors.push(<>.error); ModuleItem::Error },
+}
+
+// ==== Module items ===========================================================
+
+Module: Module = {
+    <attributes: RAttribute*>
+    <start: @L>
+    <visibility: Visibility> "mod" <name: Ident> "{"
+        <items: ModuleItem*>
+    "}"
+    <end: @R> => {
+        let pos = pg.make(start, end);
+        Module {
+            attributes,
+            name,
+            visibility,
+            items,
+            pos,
+        }
+    }
+}
+
+ModuleDecl: ModuleDecl = {
+    <attributes: RAttribute*>
+    <start: @L>
+    <visibility: Visibility> "mod" <name: Ident> ";"
+    <end: @R> => {
+        let pos = pg.make(start, end);
+        ModuleDecl {
+            attributes,
+            visibility,
+            name,
+            pos,
+        }
+    }
+}
+
+Import: Import = {
+    <start: @L>
+    <visibility: Visibility> "import" <path: ImportPathNode> ";"
+    <end: @R> => {
+        let pos = pg.make(start, end);
+        Import {
+            visibility,
+            path,
+            pos,
+        }
+    }
+}
+
+Func: Func = {
+    <attributes: RAttribute*>
+    <start: @L>
+    <visibility: Visibility> "fn" <name: FnIdent>
+    "(" <args: CommaSep<FnArg>> ")" <ret_type: ("->" <RTypeNode>)?>
+    <body: FnBody>
+    <end: @R> => {
+        let pos = pg.make(start, end);
+        Func {
+            attributes,
+            visibility,
+            name,
+            args,
+            ret_type,
+            body,
+            pos,
+        }
+    }
+};
+
+Struct: Struct = {
+    <attributes: RAttribute*>
+    <start: @L>
+    <visibility: Visibility> "struct" <name: Ident>
+    "{"
+        <fields: CommaSep<FieldDecl>>
+    "}"
+    <methods: ("with" "{"
+        <Func*>
+    "}")?>
+    <end: @R>
+     => {
+        let pos = pg.make(start, end);
+        let methods = methods.unwrap_or(vec![]);
+        Struct {
+            attributes,
+            visibility,
+            name,
+            fields,
+            pos,
+            methods,
+        }
+    }
+}
+
+Enum: Enum = {
+    <attributes: RAttribute*>
+    <start: @L>
+    <visibility: Visibility> "enum" <name: Ident>
+    "{"
+        <constructors: CommaSep<Constructor>>
+    "}"
+    <methods: ("with" "{"
+        <Func*>
+    "}")?>
+    <end: @R>
+     => {
+        let pos = pg.make(start, end);
+        let methods = methods.unwrap_or(vec![]);
+        Enum {
+            attributes,
+            visibility,
+            name,
+            constructors,
+            pos,
+            methods,
+        }
+    }
+}
+
+// ==== Others =================================================================
+
+FnIdent: Ident = {
+    Ident,
+}
+
+RAttribute: RAttribute = {
+    <start: @L> "@" <name: Ident> <end: @R> => {
+        let pos = pg.make(start, end);
+        let args = vec![];
+        RAttribute { name, pos, args }
+    },
+
+    <start: @L> "@" <name: Ident> "(" <args: CommaSep<StringLit>> ")" <end: @R> => {
+        let pos = pg.make(start, end);
+        RAttribute { name, pos, args }
+    },
+}
+
+Path: Path = {
+    <id: IdentRef> => {
+        Path {
+            data: vec![id].into(),
+        }
+    },
+    <mut p: Path> "::" <id: IdentRef> => {
+        p.push_back(id)
+    }
+}
+
+ImportPathNode: ImportPathNode = {
+    <start: @L> <data: ImportPathData> <end: @R> => {
+        let pos = pg.make(start, end);
+        ImportPathNode {
+            pos,
+            data,
+        }
+    }
+}
+
+ImportPathData: ImportPathData = {
+    "*" => ImportPathData::All,
+    <id: IdentRef> <name: ("as" <Ident>)?> =>
+        ImportPathData::Exact(id, name),
+    "{" <items: CommaSep<ImportPathNode>> "}" =>
+        ImportPathData::Many(items),
+    <id: IdentRef> "::" <rest: ImportPathNode> =>
+        ImportPathData::Path(id, Box::new(rest)),
+}
+
+Visibility: Visibility = {
+    "pub" => Visibility::Public,
+    () => Visibility::Private
+}
+
+Ident: Ident = {
+    <start: @L> <data: r"[a-zA-Z][a-zA-Z0-9_]*"> <end: @R>
+        => Ident {
+            data: data.to_string(),
+            pos: pg.make(start, end)
+        },
+};
+
+IdentRef: Ident = {
+    <start: @L> <data: r"[a-zA-Z][a-zA-Z0-9_]*"> <end: @R>
+        => Ident {
+            data: data.into(),
+            pos: pg.make(start, end)
+        },
+    <start: @L> "super" <end: @R>
+        => Ident {
+            data: "super".into(),
+            pos: pg.make(start, end)
+        },
+    /*<start: @L> "self" <end: @R>
+        => Ident {
+            data: "self".into(),
+            pos: pg.make(start, end)
+        }*/
+};
+
+// ==== Struct helpers =========================================================
+
+Constructor: Constructor = {
+    <attributes: RAttribute*>
+    <start: @L>
+    <name: Ident>
+    <params: ("(" <RTypeNode*> ")")?>
+    <end: @R> => {
+        let pos = pg.make(start, end);
+        let params = params.unwrap_or(vec![]);
+        Constructor::Tuple {
+            attributes,
+            params,
+            name,
+            pos,
+        }
+    }
+}
+
+FieldDecl: FieldDecl = {
+    <attributes: RAttribute*>
+    <start: @L>
+    <name: Ident> ":" <tp: RTypeNode>
+    <end: @R> =>
+        FieldDecl {
+            attributes,
+            name,
+            tp,
+            pos: pg.make(start, end)
+        }
+}
+
+FieldCons: (Ident, ExprNode) = {
+    <start: @L> <name: Ident> "=" <value: ExprNode<Expr>> <end: @R> =>
+        (name, value)
+}
+
+FnArg: FnArg = {
+    <start: @L> <is_mut: "mut"?> <name: Ident> ":" <tp: RTypeNode>
+    <end: @R> => {
+        let pos = pg.make(start, end);
+        let is_mut = match is_mut {
+            Some(_) => true,
+            None => false,
+        };
+        FnArg { is_mut, name, tp, pos, }
+    }
+}
+
+// ==== Types ==================================================================
+
+RTypeNode: RTypeNode = {
+    <start: @L> <data: RTypeData>
+    <end: @R> => {
+        RTypeNode {
+            data,
+            pos: pg.make(start, end)
+        }
+    }
+}
+
+RTypeData: RTypeData = {
+    #[precedence(level="0")]
+    <id: Path> => RTypeData::Var(id),
+
+    "fn" "(" <args: CommaSep<RTypeNode>> ")" "->"
+    <ret_type: RTypeNode> => {
+        RTypeData::Fun(args, Box::new(ret_type))
+    },
+
+    #[precedence(level="2")]
+    "*" <tp: RTypeNode> => RTypeData::Ptr(Box::new(tp)),
+    "*" "mut" <tp: RTypeNode> => RTypeData::MutPtr(Box::new(tp)),
+}
+
+// ==== Literals ===============================================================
+
+// use JSON string regex for now...
+StringLit: String = {
+    r#""([^"\\\x00-\x1F]|\\(["\\bnfrt/]|u[a-fA-F0-9]{4}))*""# => unescape_json_string(<>).unwrap(),
+};
+
+Number: usize = {
+    r"[0-9][0-9_]*(i|u)(8|16|32|64|128|size)" => <>.parse::<usize>().unwrap(),
+    r"0[xX][0-9A-Fa-f_]+(i|u)(8|16|32|64|128|size)" => <>.parse::<usize>().unwrap(),
+    r"0[oO][0-7_]+(i|u)(8|16|32|64|128|size)" => <>.parse::<usize>().unwrap(),
+    r"0[bB][01_]+(i|u)(8|16|32|64|128|size)" => <>.parse::<usize>().unwrap(),
+};
+
+// ==== Expressions ============================================================
+
+ExprNode<T>: ExprNode = {
+    <start: @L> <data: T> <end: @R> => {
+        let pos = pg.make(start, end);
+        ExprNode { data, pos }
+    },
+    Block,
+}
+
+Expr: ExprData = {
+    // ==== Let ================================================================
+    "let" <is_mut: "mut"?>
+        <name: Ident>
+        <tp: (":" <RTypeNode>)?>
+    "=" <expr: ExprNode<ExprLet>>
+        => {
+        let is_mut = match is_mut {
+            Some(_) => true,
+            None => false
+        };
+        let expr = Box::new(expr);
+        ExprData::Let {
+            name,
+            is_mut,
+            tp,
+            expr,
+        }
+    },
+    <e1: ExprNode<ExprLet>> "=" <e2: ExprNode<ExprLet>>
+        => ExprData::Assign(Box::new(e1), Box::new(e2)),
+    ExprLet,
+
+}
+
+ExprLet: ExprData = {
+    "return" <e: ExprNode<ExprLet>?> => ExprData::Return(e.map(Box::new)),
+    "if" <pred: ExprNode<ExprH>> <th: Block> =>
+        ExprData::If(Box::new(pred), Box::new(th), None),
+    "if" <pred: ExprNode<ExprH>> <th: Block> "else" <el: Block> =>
+        ExprData::If(Box::new(pred), Box::new(th), Some(Box::new(el))),
+
+    "&" <e: ExprNode<ExprLet>> => ExprData::Ref(Box::new(e)),
+    "&" "mut" <e: ExprNode<ExprLet>> => ExprData::RefMut(Box::new(e)),
+    "*" <e: ExprNode<ExprLet>> => ExprData::Deref(Box::new(e)),
+
+    <path: Path>
+    "{" <fields: CommaSep<FieldCons>> "}" => {
+        ExprData::StructCons(path, fields)
+    },
+
+
+    ExprH,
+}
+
+ExprH: ExprData = {
+    #[precedence(level="0")]
+    ExprF,
+}
+
+ExprF: ExprData = {
+    "(" <expr: Expr> ")" => expr,
+    <id: Path> => ExprData::Var(id),
+    <num: Number> => ExprData::Number(num),
+    <expr: ExprNode<ExprF>> "." <id: Ident> =>
+        ExprData::FieldAccess(Box::new(expr), id),
+
+    <expr: ExprNode<ExprF>>
+    "(" <args: CommaSep<ExprNode<Expr>>> ")" =>
+        ExprData::FunCall(Box::new(expr), args),
+
+    ! => { errors.push(<>.error); ExprData::Error },
+}
+
+Block: ExprNode = {
+    <start: @L> "{"
+        <body: (<ExprNode<Expr>> ";")*>
+        <res: (<ExprNode<Expr>>)?>
+    "}" <end: @R> => {
+        let pos = pg.make(start, end);
+        let data = match res {
+            Some(expr) => ExprData::OpenBlock(body, Box::new(expr)),
+            None => ExprData::ClosedBlock(body),
+        };
+        ExprNode {
+            data,
+            pos,
+        }
+    }
+}
+
+FnBody: Option<ExprNode> = {
+    Block => Some(<>),
+    ";" => None,
+}
