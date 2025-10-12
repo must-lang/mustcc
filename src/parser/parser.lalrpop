@@ -309,7 +309,6 @@ IdentRef: Ident = {
 // ==== Struct helpers =========================================================
 
 Constructor: Constructor = {
-    <attributes: RAttribute*>
     <start: @L>
     <name: Ident>
     <params: ("(" <RTypeNode*> ")")?>
@@ -317,25 +316,26 @@ Constructor: Constructor = {
         let pos = pg.make(start, end);
         let params = params.unwrap_or(vec![]);
         Constructor::Tuple {
-            attributes,
             params,
             name,
             pos,
         }
+    },
+    <start: @L>
+    <name: Ident>
+    <params: ("{" <CommaSep<FieldDecl>> "}")>
+    <end: @R> => {
+        let pos = pg.make(start, end);
+        Constructor::Struct {
+            name,
+            pos,
+            params,
+        }
     }
 }
 
-FieldDecl: FieldDecl = {
-    <attributes: RAttribute*>
-    <start: @L>
-    <name: Ident> ":" <tp: RTypeNode>
-    <end: @R> =>
-        FieldDecl {
-            attributes,
-            name,
-            tp,
-            pos: pg.make(start, end)
-        }
+FieldDecl: (Ident, RTypeNode) = {
+    <name: Ident> ":" <tp: RTypeNode> => (name, tp),
 }
 
 FieldCons: (Ident, ExprNode) = {
@@ -351,8 +351,24 @@ FnArg: FnArg = {
             Some(_) => true,
             None => false,
         };
-        FnArg { is_mut, name, tp, pos, }
-    }
+        FnArg::Named { is_mut, name, tp, pos }
+    },
+    <is_mut: "mut"?> <start: @L> "self" <end: @R> => {
+        let pos = pg.make(start, end);
+        let is_mut = match is_mut {
+            Some(_) => true,
+            None => false,
+        };
+        FnArg::NSelf { is_mut, pos }
+    },
+    "*" <start: @L> "self" <end: @R> => {
+        let pos = pg.make(start, end);
+        FnArg::PtrSelf(pos)
+    },
+    "*" "mut" <start: @L> "self" <end: @R> => {
+        let pos = pg.make(start, end);
+        FnArg::MutPtrSelf(pos)
+    },
 }
 
 // ==== Types ==================================================================

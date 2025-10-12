@@ -118,7 +118,7 @@ pub struct Struct {
     pub attributes: Vec<RAttribute>,
     pub visibility: Visibility,
     pub name: Ident,
-    pub fields: Vec<FieldDecl>,
+    pub fields: Vec<(Ident, RTypeNode)>,
     pub pos: Position,
     pub methods: Vec<Func>,
 }
@@ -199,11 +199,19 @@ pub enum ImportPathData {
 
 /// An argument to a function.
 #[derive(Debug)]
-pub struct FnArg {
-    pub is_mut: bool,
-    pub name: Ident,
-    pub tp: RTypeNode,
-    pub pos: Position,
+pub enum FnArg {
+    Named {
+        is_mut: bool,
+        name: Ident,
+        tp: RTypeNode,
+        pos: Position,
+    },
+    NSelf {
+        is_mut: bool,
+        pos: Position,
+    },
+    PtrSelf(Position),
+    MutPtrSelf(Position),
 }
 
 /// Constructor of an enum.
@@ -219,24 +227,29 @@ pub enum Constructor {
     /// }
     /// ```
     Tuple {
-        attributes: Vec<RAttribute>,
         name: Ident,
         pos: Position,
         params: Vec<RTypeNode>,
     },
-}
-
-/// Declaration of a field in struct type/variant.
-///
-/// ```mst
-/// field: type
-/// ```
-#[derive(Debug)]
-pub struct FieldDecl {
-    pub attributes: Vec<RAttribute>,
-    pub name: Ident,
-    pub tp: RTypeNode,
-    pub pos: Position,
+    /// A struct variant.
+    ///
+    /// ```mst
+    /// enum Expr {
+    ///     Let {
+    ///         name: str,
+    ///         value: Val,
+    ///     },
+    ///     Fn {
+    ///         name: str,
+    ///         args: Vec<Expr>,
+    ///     },
+    /// }
+    /// ```
+    Struct {
+        name: Ident,
+        pos: Position,
+        params: Vec<(Ident, RTypeNode)>,
+    },
 }
 
 // ==== Expressions ============================================================
