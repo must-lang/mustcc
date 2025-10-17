@@ -1,0 +1,119 @@
+mod tvar;
+mod uvar;
+
+pub use tvar::TVar;
+use uvar::UVar;
+
+/// The abstract type representation.
+///
+/// Use [Type::view] to see the actual type.
+#[derive(Debug, Clone)]
+pub struct Type(TypeView);
+
+#[derive(Debug, Clone)]
+pub enum TypeView {
+    UVar(UVar),
+    NumericUVar(UVar),
+    Var(TVar),
+    NamedVar(TVar, String),
+    Tuple(Vec<Type>),
+    Array(usize, Box<Type>),
+    Fun(Vec<Type>, Box<Type>),
+    Ptr(Box<Type>),
+    MutPtr(Box<Type>),
+}
+
+impl Type {
+    /// View the underlying type.
+    ///
+    /// It will never show resolved unification variables, following paths.
+    pub fn view(&self) -> TypeView {
+        match &self.0 {
+            TypeView::UVar(uvar) => {
+                let root = uvar.find();
+                match root.try_resolved() {
+                    Some(tp) => tp.view(),
+                    None => TypeView::UVar(uvar.clone()),
+                }
+            }
+            _ => self.0.clone(),
+        }
+    }
+}
+
+/// Unify two types, coercing `act_tp` to `exp_tp` if needed.
+///
+/// In terms of subtyping relation, `act_tp <: exp_tp` must be satisfied.
+#[must_use]
+pub fn unify(exp_tp: &Type, act_tp: &Type) -> bool {
+    match (exp_tp.view(), act_tp.view()) {
+        (TypeView::UVar(uv1), TypeView::UVar(uv2)) => {
+            uv1.union(&uv2);
+            true
+        }
+        (TypeView::UVar(uvar), _) => {
+            if uvar.occurs(&act_tp) {
+                false
+            } else {
+                uvar.resolve(act_tp.clone());
+                true
+            }
+        }
+        (_, TypeView::UVar(uvar)) => {
+            if uvar.occurs(&exp_tp) {
+                false
+            } else {
+                uvar.resolve(exp_tp.clone());
+                true
+            }
+        }
+
+        (TypeView::Array(s1, tp1), TypeView::Array(s2, tp2)) => s1 == s2 && unify(&tp1, &tp2),
+
+        (TypeView::Tuple(items1), TypeView::Tuple(items2)) => items1
+            .iter()
+            .zip(items2.iter())
+            .all(|(it1, it2)| unify(it1, it2)),
+
+        (TypeView::NumericUVar(uvar), TypeView::Var(tv) | TypeView::NamedVar(tv, _)) => {
+            if tv.is_numeric() {
+                uvar.resolve(act_tp.clone());
+                true
+            } else {
+                false
+            }
+        }
+
+        (TypeView::Var(tv) | TypeView::NamedVar(tv, _), TypeView::NumericUVar(uvar)) => {
+            if tv.is_numeric() {
+                uvar.resolve(exp_tp.clone());
+                true
+            } else {
+                false
+            }
+        }
+
+        // mut ptr can be used in place of const ptr
+        (TypeView::Ptr(tp1), TypeView::Ptr(tp2))
+        | (TypeView::Ptr(tp1), TypeView::MutPtr(tp2))
+        | (TypeView::MutPtr(tp1), TypeView::MutPtr(tp2)) => unify(&*tp1, &*tp2),
+
+        (TypeView::NamedVar(tv1, _), TypeView::NamedVar(tv2, _))
+        | (TypeView::Var(tv1), TypeView::Var(tv2)) => tv2.is_never() || tv1 == tv2,
+
+        (TypeView::Fun(items1, ret1), TypeView::Fun(items2, ret2)) => {
+            // use mutable ret here to unify as much as possible
+            let mut ret = items1.len() != items2.len();
+            if !unify(&ret1, &ret2) {
+                ret = false;
+            };
+            let items = items1
+                .iter()
+                .zip(items2.iter())
+                .all(|(it1, it2)| unify(it1, it2));
+            ret && items
+        }
+
+        _ => false,
+    }
+}

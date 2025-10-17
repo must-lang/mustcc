@@ -3,7 +3,10 @@ use std::{collections::VecDeque, fmt::Display};
 
 pub mod sources;
 
+mod node_id;
 mod position;
+
+pub use node_id::NodeID;
 
 pub use position::{Position, PositionGenerator};
 

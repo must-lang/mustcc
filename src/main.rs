@@ -6,6 +6,9 @@ mod common;
 mod driver;
 mod error;
 mod parser;
+mod symtable;
+mod tp;
+mod typecheck;
 
 #[derive(Parser)]
 #[command(name = "mustcc", version, about = "Must Compiler Compiler")]
