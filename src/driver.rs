@@ -1,6 +1,7 @@
 use crate::{
     Cli,
     error::{InternalError, ariadne_renderer::AriadneRenderer, context::Context},
+    mod_tree,
     parser::parse_project,
 };
 
@@ -15,6 +16,18 @@ pub fn run(config: Cli) -> Result<(), InternalError> {
         ctx.finish()?;
         return Ok(());
     }
+
+    let prog = match mod_tree::translate(&mut ctx, prog) {
+        Ok(prog) => prog,
+        Err(err) => {
+            ctx.finish()?;
+            return Err(err);
+        }
+    };
+
+    println!("{prog:#?}");
+
+    ctx.finish()?;
 
     Ok(())
 }

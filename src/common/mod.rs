@@ -39,6 +39,50 @@ impl Path {
         self.data.pop_back();
         self
     }
+
+    pub(crate) fn try_last(&self) -> Option<&Ident> {
+        self.data.iter().last()
+    }
+
+    pub fn if_single(mut self) -> Option<Ident> {
+        if self.data.len() == 1 {
+            self.data.pop_back()
+        } else {
+            None
+        }
+    }
+
+    pub fn push_inplace(&mut self, id: Ident) {
+        self.data.push_back(id);
+    }
+
+    pub fn pop_inplace(&mut self) -> Option<Ident> {
+        self.data.pop_back()
+    }
+
+    pub fn pop_front_inplace(&mut self) -> Option<Ident> {
+        self.data.pop_front()
+    }
+
+    pub(crate) fn last(&self) -> Ident {
+        todo!()
+    }
+
+    pub(crate) fn push_front_inplace(&mut self, name: Ident) {
+        self.data.push_front(name)
+    }
+}
+
+/// Attribute.
+///
+/// ```mst
+/// @attribute(arg1, arg2, arg3)
+/// ```
+#[derive(Debug)]
+pub struct RAttribute {
+    pub name: Ident,
+    pub pos: Position,
+    pub args: Vec<String>,
 }
 
 #[derive(Debug, Clone)]

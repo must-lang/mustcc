@@ -33,7 +33,7 @@ impl Context {
         for diag in self.diagnostics {
             self.renderer
                 .show(diag, &self.sources)
-                .map_err(|_| InternalError::AnyMsg("Failed to show diagnostic".into()))?
+                .map_err(|e| InternalError::AnyMsg(format!("Failed to show diagnostic: {e}")))?
         }
         Ok(())
     }

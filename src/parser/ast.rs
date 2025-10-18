@@ -5,7 +5,7 @@
 
 // ==== Imports ================================================================
 
-use crate::common::{Ident, Path, Position, Visibility};
+use crate::common::{Ident, Path, Position, RAttribute, Visibility};
 use std::collections::BTreeMap;
 
 // ==== Program ================================================================
@@ -146,18 +146,6 @@ pub struct Enum {
 
 // ==== Others =================================================================
 
-/// Attribute.
-///
-/// ```mst
-/// @attribute(arg1, arg2, arg3)
-/// ```
-#[derive(Debug)]
-pub struct RAttribute {
-    pub name: Ident,
-    pub pos: Position,
-    pub args: Vec<String>,
-}
-
 /// Convienience wrapper for import path.
 #[derive(Debug)]
 pub struct ImportPathNode {
@@ -227,6 +215,7 @@ pub enum Constructor {
     /// }
     /// ```
     Tuple {
+        attributes: Vec<RAttribute>,
         name: Ident,
         pos: Position,
         params: Vec<RTypeNode>,
@@ -246,6 +235,7 @@ pub enum Constructor {
     /// }
     /// ```
     Struct {
+        attributes: Vec<RAttribute>,
         name: Ident,
         pos: Position,
         params: Vec<(Ident, RTypeNode)>,

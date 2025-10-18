@@ -1,5 +1,5 @@
 use super::ast::*;
-use crate::common::{Position, Visibility, Path, Ident, PositionGenerator};
+use crate::common::{RAttribute, Position, Visibility, Path, Ident, PositionGenerator};
 use std::sync::Arc;
 use super::unescape_json_string;
 
@@ -309,6 +309,7 @@ IdentRef: Ident = {
 // ==== Struct helpers =========================================================
 
 Constructor: Constructor = {
+    <attributes: RAttribute*>
     <start: @L>
     <name: Ident>
     <params: ("(" <RTypeNode*> ")")?>
@@ -316,17 +317,20 @@ Constructor: Constructor = {
         let pos = pg.make(start, end);
         let params = params.unwrap_or(vec![]);
         Constructor::Tuple {
+            attributes,
             params,
             name,
             pos,
         }
     },
+    <attributes: RAttribute*>
     <start: @L>
     <name: Ident>
     <params: ("{" <CommaSep<FieldDecl>> "}")>
     <end: @R> => {
         let pos = pg.make(start, end);
         Constructor::Struct {
+            attributes,
             name,
             pos,
             params,
