@@ -29,15 +29,56 @@ pub(crate) fn solve(ctx: &mut Context, name_tree: ScopeInfo) -> Result<ScopeInfo
                 _ => continue,
             };
             for import in imports {
-                changed = changed | resolve_import(ctx, &old_tree, &mut scope.items, id, import)?;
+                changed = changed | resolve_import(&old_tree, &mut scope.items, id, import)?;
             }
+        }
+    }
+    for (id, scope) in new_tree.iter() {
+        let imports = match &scope.kind {
+            ScopeKind::Module { imports, .. } => imports,
+            _ => continue,
+        };
+        for import in imports {
+            report_import_errors(ctx, &new_tree, id, import);
         }
     }
     Ok(new_tree)
 }
 
+fn report_import_errors(ctx: &mut Context, old_tree: &ScopeInfo, id: &NodeID, import: &Import) {
+    let binding: Binding = match old_tree.find_path(*id, import.path.clone(), true) {
+        Ok(b) => b,
+        Err(diag) => {
+            ctx.report(diag);
+            return;
+        }
+    };
+    let binding_id = match binding.sym {
+        Symbol::Ambiguous(_) => unreachable!("find_path doesn't return ambiguous nodes"),
+        Symbol::Local(node_id) | Symbol::Imported(node_id) | Symbol::GlobImported(node_id) => {
+            node_id
+        }
+    };
+    if import.is_glob {
+        match old_tree.get(binding_id) {
+            Some(_) => (),
+            None => {
+                let name = match &import.alias {
+                    Some(name) => name,
+                    None => import.path.try_last().unwrap(),
+                };
+                ctx.report(Diagnostic::error(&name.pos).with_label(
+                    Label::new(&name.pos).with_msg(format!(
+                        "cannot glob import from {}, it is not a namespace",
+                        name.data
+                    )),
+                ));
+            }
+        };
+    }
+}
+
 fn resolve_import(
-    ctx: &mut Context,
     old_tree: &ScopeInfo,
     items: &mut BTreeMap<String, Binding>,
     id: &NodeID,
@@ -45,10 +86,7 @@ fn resolve_import(
 ) -> Result<bool, InternalError> {
     let binding: Binding = match old_tree.find_path(*id, import.path.clone(), true) {
         Ok(b) => b,
-        Err(diag) => {
-            ctx.report(diag);
-            return Ok(false);
-        }
+        Err(_) => return Ok(false),
     };
     let mut changed = false;
     let binding_id = match binding.sym {
@@ -96,17 +134,8 @@ fn resolve_import(
     let scope = match old_tree.get(binding_id) {
         Some(s) => s,
         None => {
-            let name = match &import.alias {
-                Some(name) => name,
-                None => import.path.try_last().unwrap(),
-            };
-            ctx.report(
-                Diagnostic::error(&name.pos).with_label(Label::new(&name.pos).with_msg(format!(
-                    "cannot glob import from {}, it is not a namespace",
-                    name.data
-                ))),
-            );
-            return Ok(changed);
+            // not a namespace
+            return Ok(false);
         }
     };
     for (name, binding) in &scope.items {

@@ -120,9 +120,18 @@ impl ScopeInfo {
                                 Some(parent) => parent,
                                 None => panic!(),
                             };
+                            if path.data.is_empty() {
+                                let binding = Binding {
+                                    vis: Visibility::Private,
+                                    kind: Kind::Module,
+                                    sym: Symbol::Imported(parent),
+                                };
+                                return Ok(binding);
+                            }
                             self.find_path(parent, path, true)
                         }
                         _ => {
+                            // TODO: its wrong
                             path.push_front_inplace(name);
                             self.find_path(NodeID::of_root(), path, false)
                         }
@@ -139,5 +148,10 @@ impl ScopeInfo {
     /// Iterate all scopes mutably.
     pub(crate) fn iter_mut(&mut self) -> std::collections::hash_map::IterMut<'_, NodeID, Scope> {
         self.data.iter_mut()
+    }
+
+    /// Iterate all scopes.
+    pub(crate) fn iter(&self) -> std::collections::hash_map::Iter<'_, NodeID, Scope> {
+        self.data.iter()
     }
 }

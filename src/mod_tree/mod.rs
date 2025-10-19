@@ -1,8 +1,8 @@
-mod ast;
+pub mod ast;
 mod env;
 mod import_solve;
-mod scope;
-mod scope_info;
+pub mod scope;
+pub mod scope_info;
 
 use std::collections::BTreeMap;
 

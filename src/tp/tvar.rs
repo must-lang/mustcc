@@ -24,4 +24,13 @@ impl TVar {
     pub(crate) fn is_never(&self) -> bool {
         todo!()
     }
+
+    pub(crate) fn of_builtin(name: String) -> TVar {
+        let id = match name.as_str() {
+            "never" => 1,
+            "bool" => 2,
+            _ => panic!("not a builtin name: {}", name),
+        };
+        TVar { id }
+    }
 }

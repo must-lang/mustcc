@@ -1,7 +1,7 @@
 use crate::common::{Ident, NodeID, Position, RAttribute, Visibility};
 
 pub use super::ScopeInfo;
-pub use crate::parser::ast::{ExprNode, FnArg, RTypeNode};
+pub use crate::parser::ast::{ExprData, ExprNode, FnArg, RTypeNode};
 
 #[derive(Debug)]
 pub struct Program {

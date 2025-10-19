@@ -87,6 +87,7 @@ impl UVar {
             }
             TypeView::Ptr(tp) | TypeView::MutPtr(tp) | TypeView::Array(_, tp) => self.occurs(&tp),
             TypeView::Tuple(items) => items.iter().any(|item| self.occurs(item)),
+            TypeView::Unknown => false,
         }
     }
 }

@@ -12,6 +12,7 @@ pub struct Type(TypeView);
 
 #[derive(Debug, Clone)]
 pub enum TypeView {
+    Unknown,
     UVar(UVar),
     NumericUVar(UVar),
     Var(TVar),
@@ -38,6 +39,38 @@ impl Type {
             }
             _ => self.0.clone(),
         }
+    }
+
+    pub(crate) fn tuple(vec: Vec<Type>) -> Type {
+        Type(TypeView::Tuple(vec))
+    }
+
+    pub(crate) fn unit() -> Type {
+        Self::tuple(vec![])
+    }
+
+    pub(crate) fn tvar(p: TVar) -> Type {
+        todo!()
+    }
+
+    pub(crate) fn ptr(p: Type) -> Type {
+        todo!()
+    }
+
+    pub(crate) fn mut_ptr(p: Type) -> Type {
+        todo!()
+    }
+
+    pub(crate) fn named_var(tvar: TVar, name: String) -> Type {
+        Type(TypeView::NamedVar(tvar, name))
+    }
+
+    pub(crate) fn fun(args: Vec<Type>, ret: Type) -> Type {
+        todo!()
+    }
+
+    pub(crate) fn unknown() -> Type {
+        Type(TypeView::Unknown)
     }
 }
 

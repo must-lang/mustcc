@@ -12,7 +12,28 @@ pub struct SymTable {
 }
 
 impl SymTable {
-    // TODO
+    pub(crate) fn add_sym_info(&mut self, id: NodeID, sym_info: SymInfo) {
+        self.node_map.insert(id, sym_info);
+    }
+
+    pub(crate) fn add_type_info(&mut self, id: TVar, type_info: TypeInfo) {
+        self.tvar_map.insert(id, type_info);
+    }
+
+    pub(crate) fn init(tvar_map: HashMap<TVar, NodeID>) -> SymTable {
+        Self {
+            node_map: HashMap::new(),
+            tvar_map: HashMap::new(),
+        }
+    }
+
+    pub(crate) fn find(&self, node_id: NodeID) -> &SymInfo {
+        self.node_map.get(&node_id).unwrap()
+    }
+
+    pub fn destroy(self) -> HashMap<NodeID, SymInfo> {
+        self.node_map
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -25,6 +46,7 @@ pub enum Origin {
 
 #[derive(Debug)]
 pub enum SymInfo {
+    BuiltinFunc {},
     Func {
         origin: Origin,
         name: String,
@@ -54,13 +76,12 @@ pub enum TypeInfo {
         name: String,
         pos: Position,
         constructors: Vec<NodeID>,
+        methods: HashMap<String, NodeID>,
     },
 }
 
 #[derive(Debug)]
 pub struct StructField {
-    pub visibility: Visibility,
     pub name: String,
     pub tp: Type,
-    pub pos: Position,
 }
