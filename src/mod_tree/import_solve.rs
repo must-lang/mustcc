@@ -46,7 +46,7 @@ pub(crate) fn solve(ctx: &mut Context, name_tree: ScopeInfo) -> Result<ScopeInfo
 }
 
 fn report_import_errors(ctx: &mut Context, old_tree: &ScopeInfo, id: &NodeID, import: &Import) {
-    let binding: Binding = match old_tree.find_path(*id, import.path.clone(), true) {
+    let binding: Binding = match old_tree.find_path(*id, import.path.clone(), &mut true) {
         Ok(b) => b,
         Err(diag) => {
             ctx.report(diag);
@@ -84,7 +84,8 @@ fn resolve_import(
     id: &NodeID,
     import: &Import,
 ) -> Result<bool, InternalError> {
-    let binding: Binding = match old_tree.find_path(*id, import.path.clone(), true) {
+    let mut private_guard = true;
+    let binding: Binding = match old_tree.find_path(*id, import.path.clone(), &mut private_guard) {
         Ok(b) => b,
         Err(_) => return Ok(false),
     };
@@ -139,7 +140,7 @@ fn resolve_import(
         }
     };
     for (name, binding) in &scope.items {
-        if let Visibility::Private = binding.vis {
+        if !private_guard && let Visibility::Private = binding.vis {
             continue;
         }
         let binding_id = match binding.sym {

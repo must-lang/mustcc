@@ -78,7 +78,7 @@ impl Env {
         };
         let binding = self
             .scope_info
-            .find_path(self.current_module, path.clone(), true)?;
+            .find_path(self.current_module, path.clone(), &mut true)?;
         let id = match binding.sym {
             Symbol::Local(node_id) | Symbol::Imported(node_id) | Symbol::GlobImported(node_id) => {
                 node_id

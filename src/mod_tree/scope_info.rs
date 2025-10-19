@@ -45,14 +45,14 @@ impl ScopeInfo {
         &self,
         scope_id: NodeID,
         mut path: Path,
-        private_guard: bool,
+        private_guard: &mut bool,
     ) -> Result<Binding, Diagnostic> {
         let name = path.pop_front_inplace().unwrap();
         let namespace = self.get(scope_id).unwrap();
         match namespace.items.get(&name.name_str()) {
             Some(binding) => {
                 if let Visibility::Private = binding.vis
-                    && !private_guard
+                    && !*private_guard
                 {
                     return Err(Diagnostic::error(&name.pos).with_label(
                         Label::new(&name.pos).with_msg(format!("{} is private", name.data)),
@@ -66,7 +66,7 @@ impl ScopeInfo {
                     }
                     return Ok(binding.clone());
                 }
-                let mut is_guarded = false;
+                let mut private_guard = false;
                 let id = match binding.kind {
                     Kind::Module => match &binding.sym {
                         Symbol::Local(node_id)
@@ -83,7 +83,7 @@ impl ScopeInfo {
                         Symbol::Local(node_id)
                         | Symbol::Imported(node_id)
                         | Symbol::GlobImported(node_id) => {
-                            is_guarded = true;
+                            private_guard = true;
                             node_id
                         }
                         Symbol::Ambiguous(_) => {
@@ -110,10 +110,10 @@ impl ScopeInfo {
                         ));
                     }
                 };
-                self.find_path(*id, path, is_guarded)
+                self.find_path(*id, path, &mut private_guard)
             }
             None => {
-                if private_guard {
+                if *private_guard {
                     match name.name_str().as_str() {
                         "super" => {
                             let parent = match namespace.parent() {
@@ -128,12 +128,12 @@ impl ScopeInfo {
                                 };
                                 return Ok(binding);
                             }
-                            self.find_path(parent, path, true)
+                            self.find_path(parent, path, private_guard)
                         }
                         _ => {
                             // TODO: its wrong
                             path.push_front_inplace(name);
-                            self.find_path(NodeID::of_root(), path, false)
+                            self.find_path(NodeID::of_root(), path, &mut false)
                         }
                     }
                 } else {
