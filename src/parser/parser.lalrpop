@@ -476,7 +476,9 @@ ExprH: ExprData = {
 }
 
 ExprF: ExprData = {
+    "(" ")" => ExprData::Tuple(vec![]),
     "(" <expr: Expr> ")" => expr,
+    "(" <exprs: TwoOrMore<ExprNode<ExprF>>> ")" => ExprData::Tuple(exprs),
     <id: Path> => ExprData::Var(id),
     <num: Number> => ExprData::Number(num),
     <expr: ExprNode<ExprF>> "." <id: Ident> =>
