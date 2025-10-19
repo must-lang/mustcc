@@ -34,7 +34,7 @@ pub fn run(config: Cli) -> Result<(), InternalError> {
         }
     };
 
-    println!("{prog:#?}");
+    // println!("{prog:#?}");
 
     ctx.finish()?;
 

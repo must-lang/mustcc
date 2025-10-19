@@ -133,6 +133,7 @@ fn tr_module(
                                 .into_iter()
                                 .map(|param| env.resolve_type(ctx, param))
                                 .collect::<Result<_, _>>()?;
+                            constructors.push(id);
                             let sym_info = SymInfo::EnumCons {
                                 name: name.name_str(),
                                 pos,

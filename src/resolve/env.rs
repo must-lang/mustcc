@@ -6,15 +6,16 @@ use crate::{
     mod_tree::{ScopeInfo, scope::Symbol},
     parser::ast::{RTypeData, RTypeNode},
     resolve::ast::SymRef,
-    symtable::{SymInfo, SymTable},
+    symtable::{SymInfo, SymTable, TypeInfo},
     tp::{TVar, Type},
 };
 
 pub struct Env {
     pub current_module: NodeID,
     scope_info: ScopeInfo,
-    tvar_map: HashMap<NodeID, TVar>,
-    sym_table: SymTable,
+    node_tvar_map: HashMap<NodeID, TVar>,
+    node_map: HashMap<NodeID, SymInfo>,
+    tvar_map: HashMap<TVar, TypeInfo>,
     local_scopes: Vec<BTreeSet<String>>,
 }
 
@@ -88,15 +89,14 @@ impl Env {
         Ok(SymRef::Global(id))
     }
 
-    pub(crate) fn init(scope_info: ScopeInfo, tvar_map: HashMap<NodeID, TVar>) -> Self {
-        let rev_tvar_map = tvar_map.clone().into_iter().map(|(k, v)| (v, k)).collect();
-        let sym_table = SymTable::init(rev_tvar_map);
+    pub(crate) fn init(scope_info: ScopeInfo, node_tvar_map: HashMap<NodeID, TVar>) -> Self {
         Self {
             current_module: NodeID::of_root(),
             scope_info,
-            tvar_map,
-            sym_table,
+            node_tvar_map,
             local_scopes: vec![],
+            node_map: HashMap::new(),
+            tvar_map: HashMap::new(),
         }
     }
 
@@ -108,15 +108,15 @@ impl Env {
     }
 
     pub fn finish(self) -> SymTable {
-        self.sym_table
+        SymTable::init(self.node_map, self.tvar_map)
     }
 
     pub(crate) fn add_sym_info(&mut self, id: NodeID, sym_info: SymInfo) {
-        self.sym_table.add_sym_info(id, sym_info)
+        self.node_map.insert(id, sym_info);
     }
 
     pub(crate) fn get_tvar(&self, id: NodeID) -> Result<TVar, InternalError> {
-        self.tvar_map
+        self.node_tvar_map
             .get(&id)
             .cloned()
             .ok_or(InternalError::AnyMsg(format!(
@@ -126,6 +126,6 @@ impl Env {
     }
 
     pub(crate) fn add_type_info(&mut self, id: TVar, type_info: crate::symtable::TypeInfo) {
-        self.sym_table.add_type_info(id, type_info);
+        self.tvar_map.insert(id, type_info);
     }
 }

@@ -125,7 +125,7 @@ fn tr_module(
                     continue;
                 }
             }
-            _ => todo!(),
+            in_a::ModuleItem::Error => continue,
         };
         items.push(item)
     }

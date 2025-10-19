@@ -33,4 +33,12 @@ impl TVar {
         };
         TVar { id }
     }
+
+    pub(crate) fn is_builtin(&self) -> bool {
+        todo!()
+    }
+
+    pub(crate) fn builtin_size(&self) -> Option<usize> {
+        todo!()
+    }
 }
