@@ -409,10 +409,7 @@ StringLit: String = {
 };
 
 Number: usize = {
-    r"[0-9][0-9_]*(i|u)(8|16|32|64|128|size)" => <>.parse::<usize>().unwrap(),
-    r"0[xX][0-9A-Fa-f_]+(i|u)(8|16|32|64|128|size)" => <>.parse::<usize>().unwrap(),
-    r"0[oO][0-7_]+(i|u)(8|16|32|64|128|size)" => <>.parse::<usize>().unwrap(),
-    r"0[bB][01_]+(i|u)(8|16|32|64|128|size)" => <>.parse::<usize>().unwrap(),
+    r"[0-9]+" => <>.parse::<usize>().unwrap(),
 };
 
 // ==== Expressions ============================================================

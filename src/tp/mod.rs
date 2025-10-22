@@ -84,6 +84,10 @@ impl Type {
     pub(crate) fn bool() -> Type {
         todo!()
     }
+
+    pub(crate) fn numeric_uvar() -> Type {
+        todo!()
+    }
 }
 
 /// Unify two types, coercing `act_tp` to `exp_tp` if needed.
