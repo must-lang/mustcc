@@ -51,6 +51,7 @@ pub enum ExprData {
     StringLit(String),
     Tuple(Vec<ExprNode>),
     FunCall(Box<ExprNode>, Vec<ExprNode>),
+    MethodCall(Box<ExprNode>, String, Vec<ExprNode>),
     FieldAccess(Box<ExprNode>, String),
     Block(Vec<ExprNode>, Box<ExprNode>),
     Return(Box<ExprNode>),

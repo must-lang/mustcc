@@ -450,6 +450,14 @@ fn tr_expr(
         }
         in_a::ExprData::Match(expr_node, match_clauses) => todo!(),
         in_a::ExprData::While(expr_node, expr_node1) => todo!(),
+        in_a::ExprData::MethodCall(expr_node, ident, expr_nodes) => {
+            let expr_node = tr_expr(ctx, env, *expr_node)?;
+            let expr_nodes = expr_nodes
+                .into_iter()
+                .map(|expr| tr_expr(ctx, env, expr))
+                .collect::<Result<_, _>>()?;
+            out_a::ExprData::MethodCall(Box::new(expr_node), ident.data, expr_nodes)
+        }
     };
     let expr = out_a::ExprNode { data, pos };
     Ok(expr)

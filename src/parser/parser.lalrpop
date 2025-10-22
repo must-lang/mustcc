@@ -469,6 +469,8 @@ ExprLet: ExprData = {
 
 ExprH: ExprData = {
     #[precedence(level="0")]
+    <expr: ExprNode<ExprF>> "." <id: Ident> =>
+        ExprData::FieldAccess(Box::new(expr), id),
     ExprF,
 }
 
@@ -478,12 +480,14 @@ ExprF: ExprData = {
     "(" <exprs: TwoOrMore<ExprNode<ExprF>>> ")" => ExprData::Tuple(exprs),
     <id: Path> => ExprData::Var(id),
     <num: Number> => ExprData::Number(num),
-    <expr: ExprNode<ExprF>> "." <id: Ident> =>
-        ExprData::FieldAccess(Box::new(expr), id),
 
     <expr: ExprNode<ExprF>>
     "(" <args: CommaSep<ExprNode<Expr>>> ")" =>
         ExprData::FunCall(Box::new(expr), args),
+
+    <expr: ExprNode<ExprF>> "." <id: Ident>
+    "(" <args: CommaSep<ExprNode<Expr>>> ")" =>
+        ExprData::MethodCall(Box::new(expr), id, args),
 
     ! => { errors.push(<>.error); ExprData::Error },
 }

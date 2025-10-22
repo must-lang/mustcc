@@ -271,6 +271,12 @@ pub enum ExprData {
     /// It's important to note that all tuple variant constructors will be
     /// treated as a function call.
     FunCall(Box<ExprNode>, Vec<ExprNode>),
+    /// Method call.
+    ///
+    /// LHS is object on which method will be called,
+    /// Ident is the name of the method,
+    /// RHS are arguments.
+    MethodCall(Box<ExprNode>, Ident, Vec<ExprNode>),
     /// Field access to a struct type/variant.
     FieldAccess(Box<ExprNode>, Ident),
     /// Block of semicolon-separated expressions.
