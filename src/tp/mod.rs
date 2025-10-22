@@ -72,6 +72,18 @@ impl Type {
     pub(crate) fn unknown() -> Type {
         Type(TypeView::Unknown)
     }
+
+    pub(crate) fn fresh_uvar() -> Type {
+        todo!()
+    }
+
+    pub(crate) fn never() -> Type {
+        todo!()
+    }
+
+    pub(crate) fn bool() -> Type {
+        todo!()
+    }
 }
 
 /// Unify two types, coercing `act_tp` to `exp_tp` if needed.

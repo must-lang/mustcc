@@ -10,7 +10,7 @@ pub struct Program {
 pub struct Func {
     pub id: NodeID,
     pub name: String,
-    pub args: Vec<(String, Type)>,
+    pub args: Vec<(String, bool, Type)>,
     pub ret_type: Type,
     pub body: Expr,
 }
@@ -53,6 +53,7 @@ pub enum Expr {
     Let {
         name: String,
         tp: Type,
+        is_mut: bool,
         expr: Box<Expr>,
     },
     If {
@@ -83,4 +84,5 @@ pub enum Expr {
         expr: Box<Expr>,
         in_tp: Type,
     },
+    Error,
 }

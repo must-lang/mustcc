@@ -52,8 +52,7 @@ pub enum ExprData {
     Tuple(Vec<ExprNode>),
     FunCall(Box<ExprNode>, Vec<ExprNode>),
     FieldAccess(Box<ExprNode>, String),
-    ClosedBlock(Vec<ExprNode>),
-    OpenBlock(Vec<ExprNode>, Box<ExprNode>),
+    Block(Vec<ExprNode>, Box<ExprNode>),
     Return(Box<ExprNode>),
     Let {
         name: String,

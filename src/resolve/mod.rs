@@ -8,7 +8,7 @@ use crate::error::InternalError;
 use crate::error::context::Context;
 use crate::error::diagnostic::Diagnostic;
 use crate::resolve::env::Env;
-use crate::symtable::{Origin, StructField, SymInfo, TypeInfo};
+use crate::symtable::{Origin, StructField, SymInfo, SymKind, TypeInfo};
 use crate::tp::{TVar, Type};
 
 use crate::mod_tree::ast as in_a;
@@ -102,12 +102,16 @@ fn tr_module(
                     .collect();
                 let type_info = TypeInfo::Struct {
                     name: s.name.name_str(),
-                    pos: s.pos,
+                    pos: s.pos.clone(),
                     fields,
                     methods,
                 };
                 env.add_type_info(tvar, type_info);
-                let sym_info = SymInfo::Struct(tvar);
+                let sym_info = SymInfo {
+                    name: s.name.data,
+                    pos: s.pos,
+                    kind: SymKind::Struct(tvar),
+                };
                 env.add_sym_info(s.id, sym_info);
                 for method in s.methods {
                     let func = tr_func(ctx, env, method, Some(tvar))?;
@@ -134,11 +138,10 @@ fn tr_module(
                                 .map(|param| env.resolve_type(ctx, param))
                                 .collect::<Result<_, _>>()?;
                             constructors.push(id);
-                            let sym_info = SymInfo::EnumCons {
+                            let sym_info = SymInfo {
                                 name: name.name_str(),
                                 pos,
-                                args,
-                                parent: tvar,
+                                kind: SymKind::EnumCons { args, parent: e.id },
                             };
                             env.add_sym_info(id, sym_info);
                             id
@@ -159,12 +162,16 @@ fn tr_module(
                     .collect();
                 let type_info = TypeInfo::Enum {
                     name: e.name.name_str(),
-                    pos: e.pos,
+                    pos: e.pos.clone(),
                     constructors,
                     methods,
                 };
                 env.add_type_info(tvar, type_info);
-                let sym_info = SymInfo::Enum(tvar);
+                let sym_info = SymInfo {
+                    name: e.name.data,
+                    pos: e.pos,
+                    kind: SymKind::Enum(tvar),
+                };
                 env.add_sym_info(e.id, sym_info);
                 for method in e.methods {
                     let func = tr_func(ctx, env, method, Some(tvar))?;
@@ -269,12 +276,13 @@ fn tr_func(
 
     let mut origin = Origin::Local;
 
-    let sym_info = SymInfo::Func {
-        origin,
+    let sym_info = SymInfo {
         name: func.name.name_str(),
         pos: func.pos.clone(),
-        args: args_tp,
-        ret: ret_type.clone(),
+        kind: SymKind::Func {
+            args: args_tp,
+            ret: ret_type.clone(),
+        },
     };
 
     env.add_sym_info(func.id, sym_info);
@@ -329,7 +337,11 @@ fn tr_expr(
                 .map(|expr| tr_expr(ctx, env, expr))
                 .collect::<Result<_, _>>()?;
             env.leave_scope();
-            out_a::ExprData::ClosedBlock(expr_nodes)
+            let last = out_a::ExprNode {
+                data: out_a::ExprData::Tuple(vec![]),
+                pos: pos.clone(),
+            };
+            out_a::ExprData::Block(expr_nodes, Box::new(last))
         }
         in_a::ExprData::OpenBlock(expr_nodes, expr_node) => {
             env.new_scope();
@@ -339,7 +351,7 @@ fn tr_expr(
                 .collect::<Result<_, _>>()?;
             let expr_node = tr_expr(ctx, env, *expr_node)?;
             env.leave_scope();
-            out_a::ExprData::OpenBlock(expr_nodes, Box::new(expr_node))
+            out_a::ExprData::Block(expr_nodes, Box::new(expr_node))
         }
         in_a::ExprData::Return(expr_node) => {
             let expr_node = match expr_node {

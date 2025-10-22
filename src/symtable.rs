@@ -1,7 +1,4 @@
-use std::{
-    collections::{HashMap, HashSet, VecDeque},
-    hash::Hash,
-};
+use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::{
     common::{BuiltinName, NodeID, Position},
@@ -14,7 +11,11 @@ pub struct SymTable {
     tvar_map: HashMap<TVar, TypeInfo>,
     tvar_order: Vec<TVar>,
     tvar_size: HashMap<TVar, usize>,
+    methods: HashMap<TVar, HashMap<String, MethodInfo>>,
 }
+
+#[derive(Debug)]
+pub struct MethodInfo {}
 
 impl SymTable {
     pub(crate) fn init(
@@ -30,6 +31,7 @@ impl SymTable {
             tvar_map,
             tvar_order,
             tvar_size,
+            methods: HashMap::new(),
         }
     }
 
@@ -145,13 +147,8 @@ fn get_tvars(info: &TypeInfo, node_map: &HashMap<NodeID, SymInfo>) -> HashSet<TV
         } => {
             for cons in constructors {
                 match node_map.get(&cons) {
-                    Some(info) => match info {
-                        SymInfo::EnumCons {
-                            name,
-                            pos,
-                            args,
-                            parent,
-                        } => {
+                    Some(info) => match &info.kind {
+                        SymKind::EnumCons { args, parent } => {
                             for arg in args {
                                 set.extend(get_tvars_of_type(&arg))
                             }
@@ -206,23 +203,19 @@ pub enum Origin {
 }
 
 #[derive(Debug)]
-pub enum SymInfo {
+pub struct SymInfo {
+    pub name: String,
+    pub pos: Position,
+    pub kind: SymKind,
+}
+
+#[derive(Debug)]
+pub enum SymKind {
     BuiltinFunc {},
-    Func {
-        origin: Origin,
-        name: String,
-        pos: Position,
-        args: Vec<Type>,
-        ret: Type,
-    },
+    Func { args: Vec<Type>, ret: Type },
     Struct(TVar),
     Enum(TVar),
-    EnumCons {
-        name: String,
-        pos: Position,
-        args: Vec<Type>,
-        parent: TVar,
-    },
+    EnumCons { args: Vec<Type>, parent: NodeID },
 }
 
 #[derive(Debug)]
