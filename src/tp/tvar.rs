@@ -15,6 +15,11 @@ impl TVar {
         }
     }
 
+    /// Returns the underlying type id.
+    pub fn id(&self) -> usize {
+        self.id
+    }
+
     /// Check if type variable represents numeric type.
     pub(crate) fn is_numeric(&self) -> bool {
         todo!()
@@ -22,7 +27,7 @@ impl TVar {
 
     /// Check if type variable represents the never type.
     pub(crate) fn is_never(&self) -> bool {
-        todo!()
+        self.id == 1
     }
 
     pub(crate) fn of_builtin(name: String) -> TVar {

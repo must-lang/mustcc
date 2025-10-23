@@ -38,6 +38,10 @@ impl SymTable {
     pub(crate) fn find_sym_info(&self, node_id: NodeID) -> &SymInfo {
         self.node_map.get(&node_id).unwrap()
     }
+
+    pub(crate) fn find_type_info(&self, tvar: TVar) -> &TypeInfo {
+        self.tvar_map.get(&tvar).unwrap()
+    }
 }
 
 fn calculate_size(
@@ -135,8 +139,8 @@ fn get_tvars(info: &TypeInfo, node_map: &HashMap<NodeID, SymInfo>) -> HashSet<TV
             fields,
             methods,
         } => {
-            for field in fields {
-                set.extend(get_tvars_of_type(&field.tp))
+            for (_, field) in fields {
+                set.extend(get_tvars_of_type(&field))
             }
         }
         TypeInfo::Enum {
@@ -228,7 +232,7 @@ pub enum TypeInfo {
     Struct {
         name: String,
         pos: Position,
-        fields: Vec<StructField>,
+        fields: HashMap<String, Type>,
         methods: HashMap<String, NodeID>,
     },
     Enum {
@@ -237,10 +241,4 @@ pub enum TypeInfo {
         constructors: Vec<NodeID>,
         methods: HashMap<String, NodeID>,
     },
-}
-
-#[derive(Debug)]
-pub struct StructField {
-    pub name: String,
-    pub tp: Type,
 }

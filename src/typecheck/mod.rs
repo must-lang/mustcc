@@ -11,7 +11,7 @@ use crate::tp::{Type, TypeView, unify};
 use crate::typecheck::env::Env;
 use ast as out_a;
 
-fn translate(ctx: &mut Context, prog: in_a::Program) -> Result<out_a::Program, InternalError> {
+pub fn translate(ctx: &mut Context, prog: in_a::Program) -> Result<out_a::Program, InternalError> {
     let sym_table = prog.sym_table;
 
     let functions = prog
@@ -161,6 +161,46 @@ fn check_expr(
             }
         }
 
+        in_a::ExprData::FieldAccess(expr, field_name) => {
+            let tp = Type::fresh_uvar();
+            let expr = check_expr(ctx, sym_table, env, *expr, &tp, exp_mut)?;
+            let field_tp = match tp.view() {
+                TypeView::NamedVar(tvar, _) | TypeView::Var(tvar) => {
+                    let type_info = sym_table.find_type_info(tvar);
+                    match type_info {
+                        crate::symtable::TypeInfo::Struct {
+                            name,
+                            pos: _,
+                            fields,
+                            methods,
+                        } => match fields.get(&field_name) {
+                            Some(tp) => tp,
+                            None => {
+                                ctx.report(error::no_such_field(field_name, &tp, &pos));
+                                return Ok(out_a::Expr::Error);
+                            }
+                        },
+                        _ => {
+                            ctx.report(error::no_such_field(field_name, &tp, &pos));
+                            return Ok(out_a::Expr::Error);
+                        }
+                    }
+                }
+                _ => {
+                    ctx.report(error::no_such_field(field_name, &tp, &pos));
+                    return Ok(out_a::Expr::Error);
+                }
+            };
+            if !unify(exp_tp, field_tp) {
+                ctx.report(error::type_mismatch(pos, exp_tp, field_tp));
+            }
+            out_a::Expr::FieldAccess {
+                object: Box::new(expr),
+                field_name,
+                field_tp: field_tp.clone(),
+            }
+        }
+
         in_a::ExprData::Return(expr) => {
             let tp = env.expected_ret();
             let expr = check_expr(ctx, sym_table, env, *expr, &tp, false)?;
@@ -292,6 +332,18 @@ fn check_expr(
                 ctx.report(error::type_mismatch(pos, exp_tp, &tp));
             }
             out_a::Expr::NumLit(lit, tp)
+        }
+
+        in_a::ExprData::Tuple(exprs) => {
+            let mut tps = vec![];
+            let mut ch_exprs = vec![];
+            for expr in exprs {
+                let tp = Type::fresh_uvar();
+                let expr = check_expr(ctx, sym_table, env, expr, &tp, exp_mut)?;
+                tps.push(tp);
+                ch_exprs.push(expr);
+            }
+            out_a::Expr::Tuple(ch_exprs)
         }
 
         _ => todo!(),

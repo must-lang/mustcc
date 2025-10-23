@@ -8,7 +8,7 @@ use crate::error::InternalError;
 use crate::error::context::Context;
 use crate::error::diagnostic::Diagnostic;
 use crate::resolve::env::Env;
-use crate::symtable::{Origin, StructField, SymInfo, SymKind, TypeInfo};
+use crate::symtable::{Origin, SymInfo, SymKind, TypeInfo};
 use crate::tp::{TVar, Type};
 
 use crate::mod_tree::ast as in_a;
@@ -85,16 +85,15 @@ fn tr_module(
             }
             in_a::ModuleItem::Struct(s) => {
                 let tvar = env.get_tvar(s.id)?;
-                let fields = s
-                    .fields
-                    .into_iter()
-                    .map(|(name, tp)| {
-                        Ok(StructField {
-                            name: name.name_str(),
-                            tp: env.resolve_type(ctx, tp)?,
-                        })
-                    })
-                    .collect::<Result<_, _>>()?;
+                let mut fields = HashMap::new();
+                for (name, tp) in s.fields {
+                    let tp = env.resolve_type(ctx, tp)?;
+                    let name = name.data;
+                    match fields.insert(name, tp) {
+                        Some(_) => panic!("field already defined"),
+                        None => (),
+                    }
+                }
                 let methods = s
                     .methods
                     .iter()

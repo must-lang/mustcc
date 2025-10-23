@@ -1,6 +1,8 @@
 mod tvar;
 mod uvar;
 
+use std::fmt::Display;
+
 pub use tvar::TVar;
 use uvar::UVar;
 
@@ -66,7 +68,7 @@ impl Type {
     }
 
     pub(crate) fn fun(args: Vec<Type>, ret: Type) -> Type {
-        todo!()
+        Type(TypeView::Fun(args, Box::new(ret)))
     }
 
     pub(crate) fn unknown() -> Type {
@@ -74,7 +76,7 @@ impl Type {
     }
 
     pub(crate) fn fresh_uvar() -> Type {
-        todo!()
+        Type(TypeView::UVar(UVar::new()))
     }
 
     pub(crate) fn never() -> Type {
@@ -87,6 +89,37 @@ impl Type {
 
     pub(crate) fn numeric_uvar() -> Type {
         todo!()
+    }
+}
+
+impl Display for Type {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.view() {
+            TypeView::Var(type_var) => write!(f, "T#{}", type_var.id()),
+            TypeView::NamedVar(_, name) => write!(f, "{}", name),
+            TypeView::Fun(items, ret) => {
+                let items = items
+                    .iter()
+                    .map(|it| it.to_string())
+                    .collect::<Vec<String>>()
+                    .join(", ");
+                write!(f, "fn({}) -> {}", items, ret)
+            }
+            TypeView::UVar(uvar) => write!(f, "U?#{}", uvar.id().unwrap()),
+            TypeView::Ptr(tp) => write!(f, "*{}", tp),
+            TypeView::MutPtr(tp) => write!(f, "*mut {}", tp),
+            TypeView::Unknown => todo!(),
+            TypeView::NumericUVar(uvar) => todo!(),
+            TypeView::Tuple(items) => {
+                let items = items
+                    .iter()
+                    .map(|it| it.to_string())
+                    .collect::<Vec<String>>()
+                    .join(", ");
+                write!(f, "({})", items)
+            }
+            TypeView::Array(_, _) => todo!(),
+        }
     }
 }
 

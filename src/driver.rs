@@ -3,7 +3,7 @@ use crate::{
     error::{InternalError, ariadne_renderer::AriadneRenderer, context::Context},
     mod_tree,
     parser::parse_project,
-    resolve,
+    resolve, typecheck,
 };
 
 /// Run the compiler.
@@ -27,6 +27,14 @@ pub fn run(config: Cli) -> Result<(), InternalError> {
     };
 
     let prog = match resolve::translate(&mut ctx, prog) {
+        Ok(prog) => prog,
+        Err(err) => {
+            ctx.finish()?;
+            return Err(err);
+        }
+    };
+
+    let prog = match typecheck::translate(&mut ctx, prog) {
         Ok(prog) => prog,
         Err(err) => {
             ctx.finish()?;

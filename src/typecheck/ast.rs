@@ -38,7 +38,7 @@ pub enum Expr {
     },
     FieldAccess {
         object: Box<Expr>,
-        field_id: String,
+        field_name: String,
         field_tp: Type,
     },
     Block {
