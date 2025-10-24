@@ -11,11 +11,7 @@ pub struct SymTable {
     tvar_map: HashMap<TVar, TypeInfo>,
     tvar_order: Vec<TVar>,
     tvar_size: HashMap<TVar, usize>,
-    methods: HashMap<TVar, HashMap<String, MethodInfo>>,
 }
-
-#[derive(Debug)]
-pub struct MethodInfo {}
 
 impl SymTable {
     pub(crate) fn init(
@@ -31,7 +27,6 @@ impl SymTable {
             tvar_map,
             tvar_order,
             tvar_size,
-            methods: HashMap::new(),
         }
     }
 
@@ -170,7 +165,7 @@ fn get_tvars(info: &TypeInfo, node_map: &HashMap<NodeID, SymInfo>) -> HashSet<TV
 
 fn get_tvars_of_type(tp: &Type) -> HashSet<TVar> {
     match &tp.view() {
-        crate::tp::TypeView::Unknown => todo!(),
+        crate::tp::TypeView::Unknown => HashSet::new(),
         crate::tp::TypeView::UVar(uvar) | crate::tp::TypeView::NumericUVar(uvar) => panic!(),
         crate::tp::TypeView::Var(tvar) | crate::tp::TypeView::NamedVar(tvar, _) => {
             let mut set = HashSet::new();

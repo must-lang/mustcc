@@ -22,7 +22,7 @@ impl TVar {
 
     /// Check if type variable represents numeric type.
     pub(crate) fn is_numeric(&self) -> bool {
-        todo!()
+        self.id > 2 && self.id < 32
     }
 
     /// Check if type variable represents the never type.
@@ -34,6 +34,7 @@ impl TVar {
         let id = match name.as_str() {
             "never" => 1,
             "bool" => 2,
+            "i32" => 7,
             _ => panic!("not a builtin name: {}", name),
         };
         TVar { id }

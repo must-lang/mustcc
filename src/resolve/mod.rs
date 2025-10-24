@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use crate::common::NodeID;
 use crate::error::InternalError;
 use crate::error::context::Context;
-use crate::error::diagnostic::Diagnostic;
+use crate::error::diagnostic::{Diagnostic, Label};
 use crate::resolve::env::Env;
 use crate::symtable::{Origin, SymInfo, SymKind, TypeInfo};
 use crate::tp::{TVar, Type};
@@ -107,13 +107,13 @@ fn tr_module(
                 };
                 env.add_type_info(tvar, type_info);
                 let sym_info = SymInfo {
-                    name: s.name.data,
+                    name: s.name.data.clone(),
                     pos: s.pos,
                     kind: SymKind::Struct(tvar),
                 };
                 env.add_sym_info(s.id, sym_info);
                 for method in s.methods {
-                    let func = tr_func(ctx, env, method, Some(tvar))?;
+                    let func = tr_func(ctx, env, method, Some((tvar, s.name.data.clone())))?;
                     if let Some(func) = func {
                         functions.push(func);
                     }
@@ -167,13 +167,13 @@ fn tr_module(
                 };
                 env.add_type_info(tvar, type_info);
                 let sym_info = SymInfo {
-                    name: e.name.data,
+                    name: e.name.data.clone(),
                     pos: e.pos,
                     kind: SymKind::Enum(tvar),
                 };
                 env.add_sym_info(e.id, sym_info);
                 for method in e.methods {
-                    let func = tr_func(ctx, env, method, Some(tvar))?;
+                    let func = tr_func(ctx, env, method, Some((tvar, e.name.data.clone())))?;
                     if let Some(func) = func {
                         functions.push(func);
                     }
@@ -188,7 +188,7 @@ fn tr_func(
     ctx: &mut Context,
     env: &mut Env,
     func: in_a::Func,
-    parent: Option<TVar>,
+    parent: Option<(TVar, String)>,
 ) -> Result<Option<ast::Func>, InternalError> {
     env.new_scope();
     let ret_type = match func.ret_type {
@@ -218,8 +218,8 @@ fn tr_func(
             in_a::FnArg::NSelf { is_mut, pos } => {
                 let name = "self".to_string();
                 env.add_local(name.clone());
-                let tp = match parent {
-                    Some(p) => Type::tvar(p),
+                let tp = match &parent {
+                    Some(p) => Type::named_var(p.0, p.1.clone()),
                     None => {
                         ctx.report(Diagnostic::error(&pos));
                         return Ok(None);
@@ -236,8 +236,8 @@ fn tr_func(
             in_a::FnArg::PtrSelf(pos) => {
                 let name = "self".to_string();
                 env.add_local(name.clone());
-                let tp = match parent {
-                    Some(p) => Type::ptr(Type::tvar(p)),
+                let tp = match &parent {
+                    Some(p) => Type::ptr(Type::named_var(p.0, p.1.clone())),
                     None => {
                         ctx.report(Diagnostic::error(&pos));
                         return Ok(None);
@@ -254,8 +254,8 @@ fn tr_func(
             in_a::FnArg::MutPtrSelf(pos) => {
                 let name = "self".to_string();
                 env.add_local(name.clone());
-                let tp = match parent {
-                    Some(p) => Type::mut_ptr(Type::tvar(p)),
+                let tp = match &parent {
+                    Some(p) => Type::mut_ptr(Type::named_var(p.0, p.1.clone())),
                     None => {
                         ctx.report(Diagnostic::error(&pos));
                         return Ok(None);
@@ -405,11 +405,19 @@ fn tr_expr(
                 out_a::SymRef::Local(_) => panic!("local type definitons not supported"),
                 out_a::SymRef::Global(id) => id,
             };
-            let items = items
-                .into_iter()
-                .map(|(ident, expr)| Ok((ident.name_str(), tr_expr(ctx, env, expr)?)))
-                .collect::<Result<_, _>>()?;
-            out_a::ExprData::StructCons(id, items)
+            let mut tr_items = HashMap::new();
+            for (ident, expr) in items {
+                let name = ident.name_str();
+                if let Some(_) = tr_items.insert(name.clone(), tr_expr(ctx, env, expr)?) {
+                    ctx.report(
+                        Diagnostic::error(&pos).with_label(
+                            Label::new(&pos)
+                                .with_msg(format!("field `{}` initialized more than once", name)),
+                        ),
+                    );
+                }
+            }
+            out_a::ExprData::StructCons(id, tr_items)
         }
         in_a::ExprData::Assign(lexpr, rexpr) => {
             let lexpr = tr_expr(ctx, env, *lexpr)?;

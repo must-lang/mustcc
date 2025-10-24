@@ -299,11 +299,11 @@ IdentRef: Ident = {
             data: "super".into(),
             pos: pg.make(start, end)
         },
-    /*<start: @L> "self" <end: @R>
+    <start: @L> "self" <end: @R>
         => Ident {
             data: "self".into(),
             pos: pg.make(start, end)
-        }*/
+        }
 };
 
 // ==== Struct helpers =========================================================
@@ -454,6 +454,10 @@ ExprLet: ExprData = {
     "if" <pred: ExprNode<ExprH>> <th: Block> "else" <el: Block> =>
         ExprData::If(Box::new(pred), Box::new(th), Some(Box::new(el))),
 
+    "match" <expr: ExprNode<ExprH>> "{"
+        <clauses: CommaSep<MatchClause>>
+    "}" => ExprData::Match(Box::new(expr), clauses),
+
     "&" <e: ExprNode<ExprLet>> => ExprData::Ref(Box::new(e)),
     "&" "mut" <e: ExprNode<ExprLet>> => ExprData::RefMut(Box::new(e)),
     "*" <e: ExprNode<ExprLet>> => ExprData::Deref(Box::new(e)),
@@ -465,6 +469,35 @@ ExprLet: ExprData = {
 
 
     ExprH,
+}
+
+MatchClause: MatchClause = {
+    <start: @L> <pattern: PatternNode> "=>" <expr: ExprNode<Expr>> <end: @R> => {
+        let pos = pg.make(start, end);
+        MatchClause {
+            pattern,
+            expr,
+            pos,
+        }
+    }
+}
+
+PatternNode: PatternNode = {
+    <start: @L> <data: PatternData> <end: @R> => {
+        let pos = pg.make(start, end);
+        PatternNode {
+            data,
+            pos,
+        }
+    }
+}
+
+PatternData: PatternData = {
+    "_" => PatternData::Wildcard,
+    Number => PatternData::Number(<>),
+    Ident => PatternData::Var(<>),
+    "(" <pats: CommaSep<PatternNode>> ")" => PatternData::Tuple(pats),
+    <path: Path> "(" <pats: CommaSep<PatternNode>> ")" => PatternData::TupleCons(path, pats),
 }
 
 ExprH: ExprData = {

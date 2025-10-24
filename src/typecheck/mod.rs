@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::error::context::Context;
 
 mod ast;
@@ -6,7 +8,7 @@ mod error;
 
 use crate::error::InternalError;
 use crate::resolve::ast as in_a;
-use crate::symtable::{SymKind, SymTable};
+use crate::symtable::{SymKind, SymTable, TypeInfo};
 use crate::tp::{Type, TypeView, unify};
 use crate::typecheck::env::Env;
 use ast as out_a;
@@ -346,6 +348,160 @@ fn check_expr(
             out_a::Expr::Tuple(ch_exprs)
         }
 
-        _ => todo!(),
+        in_a::ExprData::StringLit(_) => todo!(),
+
+        in_a::ExprData::MethodCall(expr, method_name, exprs) => {
+            let tp = Type::fresh_uvar();
+            let expr = check_expr(ctx, sym_table, env, *expr, &tp, false)?;
+            let method_id = match tp.view() {
+                TypeView::Var(tvar) | TypeView::NamedVar(tvar, _) => {
+                    let type_info = sym_table.find_type_info(tvar);
+                    match type_info {
+                        TypeInfo::Primitive { name, methods, .. }
+                        | TypeInfo::Struct { name, methods, .. }
+                        | TypeInfo::Enum { name, methods, .. } => match methods.get(&method_name) {
+                            Some(m) => *m,
+                            None => {
+                                ctx.report(error::unbound_method(pos, method_name));
+                                return Ok(out_a::Expr::Error);
+                            }
+                        },
+                    }
+                }
+                TypeView::Unknown => return Ok(out_a::Expr::Error),
+                TypeView::UVar(uvar) | TypeView::NumericUVar(uvar) => {
+                    ctx.report(error::unsolved_uvar(pos, &tp));
+                    return Ok(out_a::Expr::Error);
+                }
+                TypeView::Tuple(items) => todo!(),
+                TypeView::Array(_, _) => todo!(),
+                TypeView::Fun(items, _) => todo!(),
+                TypeView::Ptr(tp) | TypeView::MutPtr(tp) => match tp.view() {
+                    TypeView::Var(tvar) | TypeView::NamedVar(tvar, _) => {
+                        let type_info = sym_table.find_type_info(tvar);
+                        match type_info {
+                            TypeInfo::Primitive { name, methods, .. }
+                            | TypeInfo::Struct { name, methods, .. }
+                            | TypeInfo::Enum { name, methods, .. } => {
+                                match methods.get(&method_name) {
+                                    Some(m) => *m,
+                                    None => {
+                                        ctx.report(error::unbound_method(pos, method_name));
+                                        return Ok(out_a::Expr::Error);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    TypeView::Unknown => return Ok(out_a::Expr::Error),
+                    TypeView::UVar(uvar) | TypeView::NumericUVar(uvar) => {
+                        ctx.report(error::unsolved_uvar(pos, &tp));
+                        return Ok(out_a::Expr::Error);
+                    }
+                    TypeView::Tuple(items) => todo!(),
+                    TypeView::Array(_, _) => todo!(),
+                    TypeView::Fun(items, _) => todo!(),
+                    TypeView::Ptr(tp) | TypeView::MutPtr(tp) => todo!(),
+                },
+            };
+            let method_info = sym_table.find_sym_info(method_id);
+            let (mut args_tp, ret_tp) = match &method_info.kind {
+                SymKind::BuiltinFunc {} => todo!(),
+                SymKind::Func { args, ret } => (args.clone(), ret.clone()),
+                _ => panic!("not a function"),
+            };
+            let first_arg = match args_tp.get(0) {
+                Some(tp) => tp,
+                None => {
+                    ctx.report(error::unexpected_argument(1, pos));
+                    return Ok(out_a::Expr::Error);
+                }
+            };
+            if !unify(first_arg, &tp) {
+                ctx.report(error::type_mismatch(pos.clone(), first_arg, &tp));
+            }
+            let mut args_iter = exprs.into_iter();
+            let mut id = 1;
+            let mut args = vec![expr];
+            for arg in args_tp[1..].iter() {
+                id += 1;
+                let arg = if let Some(expr) = args_iter.next() {
+                    check_expr(ctx, sym_table, env, expr, arg, false)?
+                } else {
+                    ctx.report(error::missing_argument(id, arg));
+                    out_a::Expr::Error
+                };
+                args.push(arg)
+            }
+            while let Some(arg) = args_iter.next() {
+                id += 1;
+                ctx.report(error::unexpected_argument(id, arg.pos));
+            }
+            if !unify(exp_tp, &ret_tp) {
+                ctx.report(error::type_mismatch(pos, exp_tp, &ret_tp));
+            }
+            let method_tp = Type::fun(args_tp.clone(), ret_tp.clone());
+            let callee = out_a::Expr::GlobalVar {
+                id: method_id,
+                tp: method_tp,
+            };
+
+            out_a::Expr::FunCall {
+                expr: Box::new(callee),
+                args,
+                args_tp: args_tp.clone(),
+                ret_tp: ret_tp.clone(),
+            }
+        }
+
+        in_a::ExprData::StructCons(id, mut items) => {
+            let sym_info = sym_table.find_sym_info(id);
+            let (tvar, name, fields) = match &sym_info.kind {
+                SymKind::BuiltinFunc {} => todo!(),
+                SymKind::Func { args, ret } => todo!(),
+                SymKind::Enum(tvar) => todo!(),
+                SymKind::EnumCons { args, parent } => todo!(),
+                SymKind::Struct(tvar) => {
+                    let type_info = sym_table.find_type_info(*tvar);
+                    match type_info {
+                        crate::symtable::TypeInfo::Struct {
+                            name,
+                            pos,
+                            fields,
+                            methods,
+                        } => (tvar, name, fields),
+                        _ => unreachable!("this is 100% a struct"),
+                    }
+                }
+            };
+            let mut initializers = HashMap::new();
+            for (f_name, f_type) in fields {
+                match items.remove(f_name) {
+                    Some(expr) => {
+                        let expr = check_expr(ctx, sym_table, env, expr, &f_type, false)?;
+                        initializers.insert(f_name.clone(), expr);
+                    }
+                    None => {
+                        ctx.report(error::missing_field(pos.clone(), f_name, f_type));
+                    }
+                }
+            }
+            for (f_name, expr) in items {
+                // check anyways to report errors
+                let _ = check_expr(ctx, sym_table, env, expr, &Type::fresh_uvar(), false)?;
+                ctx.report(error::unbound_field(pos.clone(), f_name));
+            }
+            let tp = Type::named_var(*tvar, name.clone());
+            if !unify(exp_tp, &tp) {
+                ctx.report(error::type_mismatch(pos, exp_tp, &tp));
+            }
+            out_a::Expr::StructCons {
+                id,
+                initializers,
+                tp,
+            }
+        }
+
+        in_a::ExprData::Error => out_a::Expr::Error,
     })
 }

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::{common::NodeID, symtable::SymTable, tp::Type};
 
 #[derive(Debug)]
@@ -64,7 +66,7 @@ pub enum Expr {
     },
     StructCons {
         id: NodeID,
-        initializers: Vec<(String, Expr)>,
+        initializers: HashMap<String, Expr>,
         tp: Type,
     },
     Assign {

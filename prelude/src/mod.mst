@@ -1,0 +1,89 @@
+
+@builtin("never")
+pub enum never {}
+
+@builtin("bool")
+pub enum bool {
+    False,
+    True,
+}
+
+@builtin("order")
+pub enum order {
+    Lt,
+    Eq,
+    Gt,
+}
+
+@builtin("u8")
+pub struct u8 {} with {
+    @builtin("u8_add")
+    pub fn add(self, other: u8) -> u8;
+
+    @builtin("u8_sub")
+    pub fn sub(self, other: u8) -> u8;
+
+    @builtin("u8_mul")
+    pub fn mul(self, other: u8) -> u8;
+
+    @builtin("u8_div")
+    pub fn div(self, other: u8) -> u8;
+
+    @builtin("u8_cmp")
+    pub fn cmp(self, other: u8) -> order;
+}
+
+@builtin("i32")
+pub struct i32 {} with {
+    @builtin("i32_add")
+    pub fn add(self, other: i32) -> i32;
+
+    @builtin("i32_sub")
+    pub fn sub(self, other: i32) -> i32;
+
+    @builtin("i32_mul")
+    pub fn mul(self, other: i32) -> i32;
+
+    @builtin("i32_div")
+    pub fn div(self, other: i32) -> i32;
+
+    @builtin("i32_mod")
+    pub fn md(self, other: i32) -> i32;
+
+    @builtin("i32_cmp")
+    pub fn cmp(self, other: i32) -> order;
+
+    pub fn gt(self, other: i32) -> bool {
+        match self.cmp(other) {
+            Lt => False,
+            Eq => False,
+            Gt => True
+        }
+    }
+
+    pub fn ge(self, other: i32) -> bool {
+    self
+    }
+}
+
+@extern
+pub fn putchar(ch: u8);
+
+pub fn print_int(n: i32) {
+    let mut buf: [32]u8 = [32; 0];
+    let mut i = 0;
+    while n.gt(0) {
+        buf.(i) = (n.md(10) as u8).add('0');
+        i = i.add(1);
+        n = n.div(10);
+    }
+    while i.ge(0) {
+        putchar(buf.(i));
+        i = i.sub(1);
+    }
+}
+
+@entry
+pub fn main() {
+    print_int(42);
+}

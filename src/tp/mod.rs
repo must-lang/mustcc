@@ -55,12 +55,12 @@ impl Type {
         todo!()
     }
 
-    pub(crate) fn ptr(p: Type) -> Type {
-        todo!()
+    pub(crate) fn ptr(tp: Type) -> Type {
+        Type(TypeView::Ptr(Box::new(tp)))
     }
 
-    pub(crate) fn mut_ptr(p: Type) -> Type {
-        todo!()
+    pub(crate) fn mut_ptr(tp: Type) -> Type {
+        Type(TypeView::MutPtr(Box::new(tp)))
     }
 
     pub(crate) fn named_var(tvar: TVar, name: String) -> Type {
@@ -88,7 +88,7 @@ impl Type {
     }
 
     pub(crate) fn numeric_uvar() -> Type {
-        todo!()
+        Type(TypeView::NumericUVar(UVar::new()))
     }
 }
 

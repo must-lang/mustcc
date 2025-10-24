@@ -65,7 +65,7 @@ pub enum ExprData {
     RefMut(Box<ExprNode>),
     Deref(Box<ExprNode>),
     If(Box<ExprNode>, Box<ExprNode>, Box<ExprNode>),
-    StructCons(NodeID, Vec<(String, ExprNode)>),
+    StructCons(NodeID, HashMap<String, ExprNode>),
     Assign(Box<ExprNode>, Box<ExprNode>),
     Error,
 }

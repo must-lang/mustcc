@@ -30,6 +30,7 @@ impl UVar {
     pub fn id(&self) -> Option<usize> {
         match &*self.0.borrow() {
             UVarData::Unresolved(id) => Some(*id),
+            UVarData::Link(uvar) => uvar.id(),
             _ => None,
         }
     }
