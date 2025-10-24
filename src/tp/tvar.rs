@@ -34,7 +34,17 @@ impl TVar {
         let id = match name.as_str() {
             "never" => 1,
             "bool" => 2,
-            "i32" => 7,
+            "order" => 3,
+            "u8" => 4,
+            "u16" => 5,
+            "u32" => 6,
+            "u64" => 7,
+            "usize" => 8,
+            "i8" => 9,
+            "i16" => 10,
+            "i32" => 11,
+            "i64" => 12,
+            "isize" => 13,
             _ => panic!("not a builtin name: {}", name),
         };
         TVar { id }

@@ -465,6 +465,10 @@ fn tr_expr(
                 .collect::<Result<_, _>>()?;
             out_a::ExprData::MethodCall(Box::new(expr_node), ident.data, expr_nodes)
         }
+        in_a::ExprData::ArrayInitExact(expr_nodes) => todo!(),
+        in_a::ExprData::ArrayInitRepeat(expr_node, _) => todo!(),
+        in_a::ExprData::IndexAccess(expr_node, expr_node1) => todo!(),
+        in_a::ExprData::Cast(expr_node, rtype_node) => todo!(),
     };
     let expr = out_a::ExprNode { data, pos };
     Ok(expr)

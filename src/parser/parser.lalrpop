@@ -1,7 +1,7 @@
 use super::ast::*;
 use crate::common::{RAttribute, Position, Visibility, Path, Ident, PositionGenerator};
 use std::sync::Arc;
-use super::unescape_json_string;
+use super::{unescape_json_string, parse_char_literal};
 
 use lalrpop_util::ParseError;
 
@@ -390,6 +390,10 @@ RTypeNode: RTypeNode = {
 RTypeData: RTypeData = {
     #[precedence(level="0")]
     <id: Path> => RTypeData::Var(id),
+    "(" ")" => RTypeData::Tuple(vec![]),
+
+    "[" <size: Number> "]" <tp: RTypeNode> =>
+        RTypeData::Array(size, Box::new(tp)),
 
     "fn" "(" <args: CommaSep<RTypeNode>> ")" "->"
     <ret_type: RTypeNode> => {
@@ -411,6 +415,11 @@ StringLit: String = {
 Number: usize = {
     r"[0-9]+" => <>.parse::<usize>().unwrap(),
 };
+
+CharLit: u8 = {
+    r#"'(\\[abfnrtv\\'\"\?]|\\x[0-9A-Fa-f]{1,2}|[^\\'\r\n])'"#
+        => parse_char_literal(<>).unwrap(),
+}
 
 // ==== Expressions ============================================================
 
@@ -443,6 +452,8 @@ Expr: ExprData = {
     },
     <e1: ExprNode<ExprLet>> "=" <e2: ExprNode<ExprLet>>
         => ExprData::Assign(Box::new(e1), Box::new(e2)),
+    <e: ExprNode<ExprLet>> "as" <tp: RTypeNode>
+        => ExprData::Cast(Box::new(e), tp),
     ExprLet,
 
 }
@@ -458,9 +469,14 @@ ExprLet: ExprData = {
         <clauses: CommaSep<MatchClause>>
     "}" => ExprData::Match(Box::new(expr), clauses),
 
+    "while" <expr: ExprNode<ExprH>> <body: Block> =>
+        ExprData::While(Box::new(expr), Box::new(body)),
+
     "&" <e: ExprNode<ExprLet>> => ExprData::Ref(Box::new(e)),
     "&" "mut" <e: ExprNode<ExprLet>> => ExprData::RefMut(Box::new(e)),
     "*" <e: ExprNode<ExprLet>> => ExprData::Deref(Box::new(e)),
+
+
 
     <path: Path>
     "{" <fields: CommaSep<FieldCons>> "}" => {
@@ -513,14 +529,25 @@ ExprF: ExprData = {
     "(" <exprs: TwoOrMore<ExprNode<ExprF>>> ")" => ExprData::Tuple(exprs),
     <id: Path> => ExprData::Var(id),
     <num: Number> => ExprData::Number(num),
+    <ch: CharLit> => ExprData::Char(ch),
 
     <expr: ExprNode<ExprF>>
     "(" <args: CommaSep<ExprNode<Expr>>> ")" =>
         ExprData::FunCall(Box::new(expr), args),
 
+    <expr: ExprNode<ExprF>> "."
+    "(" <arg: ExprNode<Expr>> ")" =>
+        ExprData::IndexAccess(Box::new(expr), Box::new(arg)),
+
     <expr: ExprNode<ExprF>> "." <id: Ident>
     "(" <args: CommaSep<ExprNode<Expr>>> ")" =>
         ExprData::MethodCall(Box::new(expr), id, args),
+
+    "[" <exprs: CommaSep<ExprNode<Expr>>> "]" =>
+        ExprData::ArrayInitExact(exprs),
+
+    "[" <expr: ExprNode<Expr>> ";" <size: Number> "]" =>
+        ExprData::ArrayInitRepeat(Box::new(expr), size),
 
     ! => { errors.push(<>.error); ExprData::Error },
 }

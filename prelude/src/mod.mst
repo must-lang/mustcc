@@ -62,7 +62,11 @@ pub struct i32 {} with {
     }
 
     pub fn ge(self, other: i32) -> bool {
-    self
+        match self.cmp(other) {
+            Lt => False,
+            Eq => True,
+            Gt => True
+        }
     }
 }
 
@@ -76,7 +80,7 @@ pub fn print_int(n: i32) {
         buf.(i) = (n.md(10) as u8).add('0');
         i = i.add(1);
         n = n.div(10);
-    }
+    };
     while i.ge(0) {
         putchar(buf.(i));
         i = i.sub(1);

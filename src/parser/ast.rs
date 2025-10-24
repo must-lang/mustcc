@@ -261,11 +261,23 @@ pub enum ExprData {
     /// Numeric literal.
     Number(usize),
     /// Character literal.
-    Char(char),
+    Char(u8),
     /// String literal.
     String(String),
     /// Tuple.
     Tuple(Vec<ExprNode>),
+    /// Exact array initializer.
+    ///
+    /// [1, 2, 3, 4, 5]
+    ArrayInitExact(Vec<ExprNode>),
+    /// Array initializer with repeating
+    ///
+    /// [42; 13] : [13]i32
+    ArrayInitRepeat(Box<ExprNode>, usize),
+    /// Array or slice indexing.
+    ///
+    /// arr.(6) = 7
+    IndexAccess(Box<ExprNode>, Box<ExprNode>),
     /// Function call. LHS is callable expression, RHS are arguments in order.
     ///
     /// It's important to note that all tuple variant constructors will be
@@ -315,6 +327,10 @@ pub enum ExprData {
     StructCons(Path, Vec<(Ident, ExprNode)>),
     /// Assignment, (mut) LHS = RHS.
     Assign(Box<ExprNode>, Box<ExprNode>),
+    /// Type cast.
+    ///
+    /// x as u8
+    Cast(Box<ExprNode>, RTypeNode),
 }
 
 // ==== Pattern matching =======================================================
