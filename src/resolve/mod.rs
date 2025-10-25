@@ -3,12 +3,12 @@ mod env;
 
 use std::collections::HashMap;
 
-use crate::common::NodeID;
+use crate::common::{BuiltinName, NodeID};
 use crate::error::InternalError;
 use crate::error::context::Context;
 use crate::error::diagnostic::{Diagnostic, Label};
 use crate::resolve::env::Env;
-use crate::symtable::{Origin, SymInfo, SymKind, TypeInfo};
+use crate::symtable::{SymInfo, SymKind, TypeInfo, TypeKind};
 use crate::tp::{TVar, Type};
 
 use crate::mod_tree::ast as in_a;
@@ -99,18 +99,19 @@ fn tr_module(
                     .iter()
                     .map(|func| (func.name.name_str(), func.id))
                     .collect();
-                let type_info = TypeInfo::Struct {
+
+                let kind = TypeKind::Struct { fields };
+
+                let type_info = TypeInfo {
                     name: s.name.name_str(),
                     pos: s.pos.clone(),
-                    fields,
                     methods,
+                    kind,
                 };
+
                 env.add_type_info(tvar, type_info);
-                let sym_info = SymInfo {
-                    name: s.name.data.clone(),
-                    pos: s.pos,
-                    kind: SymKind::Struct(tvar),
-                };
+                let sym_info = SymInfo::build(s.name.data.clone(), s.pos, SymKind::Struct(tvar))
+                    .with_attributes(s.attributes);
                 env.add_sym_info(s.id, sym_info);
                 for method in s.methods {
                     let func = tr_func(ctx, env, method, Some((tvar, s.name.data.clone())))?;
@@ -137,11 +138,12 @@ fn tr_module(
                                 .map(|param| env.resolve_type(ctx, param))
                                 .collect::<Result<_, _>>()?;
                             constructors.push(id);
-                            let sym_info = SymInfo {
-                                name: name.name_str(),
+                            let sym_info = SymInfo::build(
+                                name.name_str(),
                                 pos,
-                                kind: SymKind::EnumCons { args, parent: e.id },
-                            };
+                                SymKind::EnumCons { args, parent: e.id },
+                            )
+                            .with_attributes(attributes);
                             env.add_sym_info(id, sym_info);
                             id
                         }
@@ -159,18 +161,19 @@ fn tr_module(
                     .iter()
                     .map(|func| (func.name.name_str(), func.id))
                     .collect();
-                let type_info = TypeInfo::Enum {
+
+                let kind = TypeKind::Enum { constructors };
+
+                let type_info = TypeInfo {
                     name: e.name.name_str(),
                     pos: e.pos.clone(),
-                    constructors,
+                    kind,
                     methods,
                 };
+
                 env.add_type_info(tvar, type_info);
-                let sym_info = SymInfo {
-                    name: e.name.data.clone(),
-                    pos: e.pos,
-                    kind: SymKind::Enum(tvar),
-                };
+                let sym_info = SymInfo::build(e.name.data.clone(), e.pos, SymKind::Enum(tvar))
+                    .with_attributes(e.attributes);
                 env.add_sym_info(e.id, sym_info);
                 for method in e.methods {
                     let func = tr_func(ctx, env, method, Some((tvar, e.name.data.clone())))?;
@@ -273,26 +276,27 @@ fn tr_func(
         args.push(arg);
     }
 
-    let mut origin = Origin::Local;
-
-    let sym_info = SymInfo {
-        name: func.name.name_str(),
-        pos: func.pos.clone(),
-        kind: SymKind::Func {
-            args: args_tp,
-            ret: ret_type.clone(),
-        },
+    let sym_kind = SymKind::Func {
+        args: args_tp,
+        ret: ret_type.clone(),
     };
+
+    let sym_info = SymInfo::build(func.name.name_str(), func.pos.clone(), sym_kind)
+        .with_attributes(func.attributes);
+
+    let is_extern = sym_info.is_extern;
 
     env.add_sym_info(func.id, sym_info);
 
     let body = match func.body {
         Some(body) => tr_expr(ctx, env, body)?,
-        None => match origin {
-            Origin::NoMangle | Origin::Local => panic!("Local function without a body"),
-            Origin::External => return Ok(None),
-            Origin::Builtin(_) => return Ok(None),
-        },
+        None => {
+            if !is_extern {
+                ctx.report(Diagnostic::error(&func.pos));
+            }
+            env.leave_scope();
+            return Ok(None);
+        }
     };
 
     let func = out_a::Func {

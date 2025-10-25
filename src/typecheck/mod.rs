@@ -8,7 +8,7 @@ mod error;
 
 use crate::error::InternalError;
 use crate::resolve::ast as in_a;
-use crate::symtable::{SymKind, SymTable, TypeInfo};
+use crate::symtable::{SymKind, SymTable, TypeInfo, TypeKind};
 use crate::tp::{Type, TypeView, unify};
 use crate::typecheck::env::Env;
 use ast as out_a;
@@ -115,7 +115,6 @@ fn check_expr(
                         }
                         out_a::Expr::GlobalVar { id: node_id, tp }
                     }
-                    SymKind::BuiltinFunc {} => todo!(),
                     SymKind::Struct(tvar) => todo!(),
                     SymKind::Enum(tvar) => todo!(),
                 }
@@ -169,13 +168,8 @@ fn check_expr(
             let field_tp = match tp.view() {
                 TypeView::NamedVar(tvar, _) | TypeView::Var(tvar) => {
                     let type_info = sym_table.find_type_info(tvar);
-                    match type_info {
-                        crate::symtable::TypeInfo::Struct {
-                            name,
-                            pos: _,
-                            fields,
-                            methods,
-                        } => match fields.get(&field_name) {
+                    match &type_info.kind {
+                        TypeKind::Struct { fields } => match fields.get(&field_name) {
                             Some(tp) => tp,
                             None => {
                                 ctx.report(error::no_such_field(field_name, &tp, &pos));
@@ -356,16 +350,12 @@ fn check_expr(
             let method_id = match tp.view() {
                 TypeView::Var(tvar) | TypeView::NamedVar(tvar, _) => {
                     let type_info = sym_table.find_type_info(tvar);
-                    match type_info {
-                        TypeInfo::Primitive { name, methods, .. }
-                        | TypeInfo::Struct { name, methods, .. }
-                        | TypeInfo::Enum { name, methods, .. } => match methods.get(&method_name) {
-                            Some(m) => *m,
-                            None => {
-                                ctx.report(error::unbound_method(pos, method_name));
-                                return Ok(out_a::Expr::Error);
-                            }
-                        },
+                    match type_info.methods.get(&method_name) {
+                        Some(m) => *m,
+                        None => {
+                            ctx.report(error::unbound_method(pos, method_name));
+                            return Ok(out_a::Expr::Error);
+                        }
                     }
                 }
                 TypeView::Unknown => return Ok(out_a::Expr::Error),
@@ -379,17 +369,11 @@ fn check_expr(
                 TypeView::Ptr(tp) | TypeView::MutPtr(tp) => match tp.view() {
                     TypeView::Var(tvar) | TypeView::NamedVar(tvar, _) => {
                         let type_info = sym_table.find_type_info(tvar);
-                        match type_info {
-                            TypeInfo::Primitive { name, methods, .. }
-                            | TypeInfo::Struct { name, methods, .. }
-                            | TypeInfo::Enum { name, methods, .. } => {
-                                match methods.get(&method_name) {
-                                    Some(m) => *m,
-                                    None => {
-                                        ctx.report(error::unbound_method(pos, method_name));
-                                        return Ok(out_a::Expr::Error);
-                                    }
-                                }
+                        match type_info.methods.get(&method_name) {
+                            Some(m) => *m,
+                            None => {
+                                ctx.report(error::unbound_method(pos, method_name));
+                                return Ok(out_a::Expr::Error);
                             }
                         }
                     }
@@ -406,7 +390,6 @@ fn check_expr(
             };
             let method_info = sym_table.find_sym_info(method_id);
             let (mut args_tp, ret_tp) = match &method_info.kind {
-                SymKind::BuiltinFunc {} => todo!(),
                 SymKind::Func { args, ret } => (args.clone(), ret.clone()),
                 _ => panic!("not a function"),
             };
@@ -457,19 +440,13 @@ fn check_expr(
         in_a::ExprData::StructCons(id, mut items) => {
             let sym_info = sym_table.find_sym_info(id);
             let (tvar, name, fields) = match &sym_info.kind {
-                SymKind::BuiltinFunc {} => todo!(),
                 SymKind::Func { args, ret } => todo!(),
                 SymKind::Enum(tvar) => todo!(),
                 SymKind::EnumCons { args, parent } => todo!(),
                 SymKind::Struct(tvar) => {
                     let type_info = sym_table.find_type_info(*tvar);
-                    match type_info {
-                        crate::symtable::TypeInfo::Struct {
-                            name,
-                            pos,
-                            fields,
-                            methods,
-                        } => (tvar, name, fields),
+                    match &type_info.kind {
+                        TypeKind::Struct { fields } => (tvar, type_info.name.clone(), fields),
                         _ => unreachable!("this is 100% a struct"),
                     }
                 }

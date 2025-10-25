@@ -1,45 +1,12 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::{
-    common::{BuiltinName, NodeID, Position},
+    common::NodeID,
+    symtable::{SymInfo, SymKind, TypeInfo, TypeKind},
     tp::{TVar, Type},
 };
 
-#[derive(Debug)]
-pub struct SymTable {
-    node_map: HashMap<NodeID, SymInfo>,
-    tvar_map: HashMap<TVar, TypeInfo>,
-    tvar_order: Vec<TVar>,
-    tvar_size: HashMap<TVar, usize>,
-}
-
-impl SymTable {
-    pub(crate) fn init(
-        node_map: HashMap<NodeID, SymInfo>,
-        tvar_map: HashMap<TVar, TypeInfo>,
-    ) -> SymTable {
-        let dep_tree: HashMap<TVar, HashSet<TVar>> = make_dep_tree(&tvar_map, &node_map);
-        println!("{:#?}", dep_tree);
-        let tvar_order = topo_sort(dep_tree);
-        let tvar_size = calculate_size(&tvar_map, &node_map, &tvar_order);
-        Self {
-            node_map,
-            tvar_map,
-            tvar_order,
-            tvar_size,
-        }
-    }
-
-    pub(crate) fn find_sym_info(&self, node_id: NodeID) -> &SymInfo {
-        self.node_map.get(&node_id).unwrap()
-    }
-
-    pub(crate) fn find_type_info(&self, tvar: TVar) -> &TypeInfo {
-        self.tvar_map.get(&tvar).unwrap()
-    }
-}
-
-fn calculate_size(
+pub fn calculate_size(
     tvar_map: &HashMap<TVar, TypeInfo>,
     node_map: &HashMap<NodeID, SymInfo>,
     tvar_order: &[TVar],
@@ -56,7 +23,7 @@ fn calculate_size(
     tvar_size
 }
 
-fn reverse_graph(graph: &HashMap<TVar, HashSet<TVar>>) -> HashMap<TVar, HashSet<TVar>> {
+pub fn reverse_graph(graph: &HashMap<TVar, HashSet<TVar>>) -> HashMap<TVar, HashSet<TVar>> {
     let mut rev: HashMap<TVar, HashSet<TVar>> = HashMap::new();
 
     for node in graph.keys() {
@@ -72,7 +39,7 @@ fn reverse_graph(graph: &HashMap<TVar, HashSet<TVar>>) -> HashMap<TVar, HashSet<
     rev
 }
 
-fn topo_sort(dep_tree: HashMap<TVar, HashSet<TVar>>) -> Vec<TVar> {
+pub fn topo_sort(dep_tree: HashMap<TVar, HashSet<TVar>>) -> Vec<TVar> {
     let n = dep_tree.len();
     let mut indeg = HashMap::<TVar, usize>::new();
 
@@ -111,7 +78,7 @@ fn topo_sort(dep_tree: HashMap<TVar, HashSet<TVar>>) -> Vec<TVar> {
     order
 }
 
-fn make_dep_tree(
+pub fn make_dep_tree(
     tvar_map: &HashMap<TVar, TypeInfo>,
     node_map: &HashMap<NodeID, SymInfo>,
 ) -> HashMap<TVar, HashSet<TVar>> {
@@ -127,23 +94,13 @@ fn make_dep_tree(
 
 fn get_tvars(info: &TypeInfo, node_map: &HashMap<NodeID, SymInfo>) -> HashSet<TVar> {
     let mut set = HashSet::new();
-    match info {
-        TypeInfo::Struct {
-            name,
-            pos,
-            fields,
-            methods,
-        } => {
+    match &info.kind {
+        TypeKind::Struct { fields } => {
             for (_, field) in fields {
                 set.extend(get_tvars_of_type(&field))
             }
         }
-        TypeInfo::Enum {
-            name,
-            pos,
-            constructors,
-            methods,
-        } => {
+        TypeKind::Enum { constructors } => {
             for cons in constructors {
                 match node_map.get(&cons) {
                     Some(info) => match &info.kind {
@@ -191,49 +148,4 @@ fn get_tvars_of_type(tp: &Type) -> HashSet<TVar> {
         crate::tp::TypeView::Ptr(_) => HashSet::new(),
         crate::tp::TypeView::MutPtr(_) => HashSet::new(),
     }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub enum Origin {
-    Local,
-    External,
-    Builtin(BuiltinName),
-    NoMangle,
-}
-
-#[derive(Debug)]
-pub struct SymInfo {
-    pub name: String,
-    pub pos: Position,
-    pub kind: SymKind,
-}
-
-#[derive(Debug)]
-pub enum SymKind {
-    BuiltinFunc {},
-    Func { args: Vec<Type>, ret: Type },
-    Struct(TVar),
-    Enum(TVar),
-    EnumCons { args: Vec<Type>, parent: NodeID },
-}
-
-#[derive(Debug)]
-pub enum TypeInfo {
-    Primitive {
-        name: String,
-        methods: HashMap<String, NodeID>,
-        size: usize,
-    },
-    Struct {
-        name: String,
-        pos: Position,
-        fields: HashMap<String, Type>,
-        methods: HashMap<String, NodeID>,
-    },
-    Enum {
-        name: String,
-        pos: Position,
-        constructors: Vec<NodeID>,
-        methods: HashMap<String, NodeID>,
-    },
 }
