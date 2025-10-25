@@ -48,7 +48,7 @@ pub enum SymRef {
 pub enum ExprData {
     Var(SymRef),
     NumLit(usize),
-    StringLit(String),
+    String(String),
     Tuple(Vec<ExprNode>),
     FunCall(Box<ExprNode>, Vec<ExprNode>),
     MethodCall(Box<ExprNode>, String, Vec<ExprNode>),
@@ -68,4 +68,36 @@ pub enum ExprData {
     StructCons(NodeID, HashMap<String, ExprNode>),
     Assign(Box<ExprNode>, Box<ExprNode>),
     Error,
+    IndexAccess(Box<ExprNode>, Box<ExprNode>),
+    Match(Box<ExprNode>, Vec<MatchClause>),
+    While(Box<ExprNode>, Box<ExprNode>),
+    Cast(Box<ExprNode>, Type),
+    ArrayInitExact(Vec<ExprNode>),
+    ArrayInitRepeat(Box<ExprNode>, usize),
+    Char(u8),
+}
+
+// ==== Pattern matching =======================================================
+
+#[derive(Debug)]
+pub struct MatchClause {
+    pub pattern: PatternNode,
+    pub expr: ExprNode,
+    pub pos: Position,
+}
+
+#[derive(Debug)]
+pub struct PatternNode {
+    pub data: PatternData,
+    pub pos: Position,
+}
+
+#[derive(Debug)]
+pub enum PatternData {
+    Error,
+    Wildcard,
+    Number(usize),
+    Var(String),
+    Tuple(Vec<PatternNode>),
+    TupleCons(NodeID, Vec<PatternNode>),
 }

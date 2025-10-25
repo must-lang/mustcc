@@ -120,7 +120,6 @@ fn check_expr(
                 }
             }
         },
-
         in_a::ExprData::FunCall(expr, expr_nodes) => {
             let fn_tp = Type::fresh_uvar();
             let expr_pos = expr.pos.clone();
@@ -161,7 +160,6 @@ fn check_expr(
                 ret_tp: *ret,
             }
         }
-
         in_a::ExprData::FieldAccess(expr, field_name) => {
             let tp = Type::fresh_uvar();
             let expr = check_expr(ctx, sym_table, env, *expr, &tp, exp_mut)?;
@@ -196,7 +194,6 @@ fn check_expr(
                 field_tp: field_tp.clone(),
             }
         }
-
         in_a::ExprData::Return(expr) => {
             let tp = env.expected_ret();
             let expr = check_expr(ctx, sym_table, env, *expr, &tp, false)?;
@@ -208,7 +205,6 @@ fn check_expr(
                 ret_tp: tp,
             }
         }
-
         in_a::ExprData::Block(expr_nodes, expr) => {
             env.new_scope();
             let exprs = expr_nodes
@@ -223,7 +219,6 @@ fn check_expr(
                 block_tp: exp_tp.clone(),
             }
         }
-
         in_a::ExprData::Let {
             name,
             is_mut,
@@ -248,7 +243,6 @@ fn check_expr(
                 expr: Box::new(expr),
             }
         }
-
         in_a::ExprData::If(pr, th, el) => {
             let tp = Type::fresh_uvar();
             let pr = check_expr(ctx, sym_table, env, *pr, &Type::bool(), false)?;
@@ -264,7 +258,6 @@ fn check_expr(
                 block_tp: tp,
             }
         }
-
         in_a::ExprData::Assign(lval, rval) => {
             let tp = Type::fresh_uvar();
             let lval = check_expr(ctx, sym_table, env, *lval, &tp, true)?;
@@ -278,7 +271,6 @@ fn check_expr(
                 assign_tp: tp,
             }
         }
-
         in_a::ExprData::Ref(expr_node) => {
             let tp = Type::fresh_uvar();
             let expr = check_expr(ctx, sym_table, env, *expr_node, &tp, false)?;
@@ -291,7 +283,6 @@ fn check_expr(
                 tp: tp,
             }
         }
-
         in_a::ExprData::RefMut(expr_node) => {
             let tp = Type::fresh_uvar();
             let expr = check_expr(ctx, sym_table, env, *expr_node, &tp, true)?;
@@ -304,7 +295,6 @@ fn check_expr(
                 tp: tp,
             }
         }
-
         in_a::ExprData::Deref(expr_node) => {
             let in_tp = Type::fresh_uvar();
             let tp = if exp_mut {
@@ -321,7 +311,6 @@ fn check_expr(
                 in_tp: in_tp,
             }
         }
-
         in_a::ExprData::NumLit(lit) => {
             let tp = Type::numeric_uvar();
             if !unify(exp_tp, &tp) {
@@ -329,7 +318,6 @@ fn check_expr(
             }
             out_a::Expr::NumLit(lit, tp)
         }
-
         in_a::ExprData::Tuple(exprs) => {
             let mut tps = vec![];
             let mut ch_exprs = vec![];
@@ -341,9 +329,7 @@ fn check_expr(
             }
             out_a::Expr::Tuple(ch_exprs)
         }
-
-        in_a::ExprData::StringLit(_) => todo!(),
-
+        in_a::ExprData::String(_) => todo!(),
         in_a::ExprData::MethodCall(expr, method_name, exprs) => {
             let tp = Type::fresh_uvar();
             let expr = check_expr(ctx, sym_table, env, *expr, &tp, false)?;
@@ -436,7 +422,6 @@ fn check_expr(
                 ret_tp: ret_tp.clone(),
             }
         }
-
         in_a::ExprData::StructCons(id, mut items) => {
             let sym_info = sym_table.find_sym_info(id);
             let (tvar, name, fields) = match &sym_info.kind {
@@ -478,7 +463,13 @@ fn check_expr(
                 tp,
             }
         }
-
         in_a::ExprData::Error => out_a::Expr::Error,
+        in_a::ExprData::IndexAccess(expr_node, expr_node1) => todo!(),
+        in_a::ExprData::Match(expr_node, match_clauses) => todo!(),
+        in_a::ExprData::While(expr_node, expr_node1) => todo!(),
+        in_a::ExprData::Cast(expr_node, _) => todo!(),
+        in_a::ExprData::ArrayInitExact(expr_nodes) => todo!(),
+        in_a::ExprData::ArrayInitRepeat(expr_node, _) => todo!(),
+        in_a::ExprData::Char(_) => todo!(),
     })
 }

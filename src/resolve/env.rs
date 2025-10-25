@@ -29,7 +29,7 @@ impl Env {
         ctx: &mut Context,
         ret_type: RTypeNode,
     ) -> Result<Type, InternalError> {
-        match ret_type.data {
+        Ok(match ret_type.data {
             RTypeData::Var(path) => {
                 let sym_ref = match self.find_symbol(path.clone()) {
                     Ok(sym) => sym,
@@ -43,7 +43,7 @@ impl Env {
                     SymRef::Global(id) => {
                         let tv = self.get_tvar(id)?;
                         let name = path.to_string();
-                        Ok(Type::named_var(tv.clone(), name))
+                        Type::named_var(tv.clone(), name)
                     }
                 }
             }
@@ -53,12 +53,30 @@ impl Env {
                     .map(|arg| self.resolve_type(ctx, arg))
                     .collect::<Result<_, _>>()?;
                 let ret = self.resolve_type(ctx, *ret)?;
-                Ok(Type::fun(args, ret))
+                Type::fun(args, ret)
             }
-            RTypeData::Ptr(tp) => Ok(Type::ptr(self.resolve_type(ctx, *tp)?)),
-            RTypeData::MutPtr(tp) => Ok(Type::mut_ptr(self.resolve_type(ctx, *tp)?)),
-            _ => todo!(),
-        }
+            RTypeData::Ptr(tp) => Type::ptr(self.resolve_type(ctx, *tp)?),
+            RTypeData::MutPtr(tp) => Type::mut_ptr(self.resolve_type(ctx, *tp)?),
+            RTypeData::Tuple(tps) => {
+                let tps = tps
+                    .into_iter()
+                    .map(|tp| self.resolve_type(ctx, tp))
+                    .collect::<Result<_, _>>()?;
+                Type::tuple(tps)
+            }
+            RTypeData::Array(size, tp) => {
+                let tp = self.resolve_type(ctx, *tp)?;
+                Type::array(size, tp)
+            }
+            RTypeData::Slice(tp) => {
+                let tp = self.resolve_type(ctx, *tp)?;
+                Type::ptr(tp)
+            }
+            RTypeData::MutSlice(tp) => {
+                let tp = self.resolve_type(ctx, *tp)?;
+                Type::mut_ptr(tp)
+            }
+        })
     }
 
     pub(crate) fn leave_scope(&mut self) {

@@ -90,6 +90,10 @@ impl Type {
     pub(crate) fn numeric_uvar() -> Type {
         Type(TypeView::NumericUVar(UVar::new()))
     }
+
+    pub(crate) fn array(size: usize, tp: Type) -> Type {
+        Type(TypeView::Array(size, Box::new(tp)))
+    }
 }
 
 impl Display for Type {

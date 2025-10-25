@@ -3,7 +3,7 @@ mod env;
 
 use std::collections::HashMap;
 
-use crate::common::{BuiltinName, NodeID};
+use crate::common::NodeID;
 use crate::error::InternalError;
 use crate::error::context::Context;
 use crate::error::diagnostic::{Diagnostic, Label};
@@ -450,8 +450,8 @@ fn tr_expr(
         }
         in_a::ExprData::Number(num) => out_a::ExprData::NumLit(num),
         in_a::ExprData::Error => out_a::ExprData::Error,
-        in_a::ExprData::Char(_) => todo!(),
-        in_a::ExprData::String(_) => todo!(),
+        in_a::ExprData::Char(c) => out_a::ExprData::Char(c),
+        in_a::ExprData::String(s) => out_a::ExprData::String(s),
         in_a::ExprData::Tuple(expr_nodes) => {
             let expr_nodes = expr_nodes
                 .into_iter()
@@ -459,8 +459,19 @@ fn tr_expr(
                 .collect::<Result<_, _>>()?;
             out_a::ExprData::Tuple(expr_nodes)
         }
-        in_a::ExprData::Match(expr_node, match_clauses) => todo!(),
-        in_a::ExprData::While(expr_node, expr_node1) => todo!(),
+        in_a::ExprData::Match(expr_node, match_clauses) => {
+            let expr_node = tr_expr(ctx, env, *expr_node)?;
+            let match_clauses = match_clauses
+                .into_iter()
+                .map(|cl| tr_clause(ctx, env, cl))
+                .collect::<Result<_, _>>()?;
+            out_a::ExprData::Match(Box::new(expr_node), match_clauses)
+        }
+        in_a::ExprData::While(expr, block) => {
+            let expr = tr_expr(ctx, env, *expr)?;
+            let block = tr_expr(ctx, env, *block)?;
+            out_a::ExprData::While(Box::new(expr), Box::new(block))
+        }
         in_a::ExprData::MethodCall(expr_node, ident, expr_nodes) => {
             let expr_node = tr_expr(ctx, env, *expr_node)?;
             let expr_nodes = expr_nodes
@@ -469,11 +480,93 @@ fn tr_expr(
                 .collect::<Result<_, _>>()?;
             out_a::ExprData::MethodCall(Box::new(expr_node), ident.data, expr_nodes)
         }
-        in_a::ExprData::ArrayInitExact(expr_nodes) => todo!(),
-        in_a::ExprData::ArrayInitRepeat(expr_node, _) => todo!(),
-        in_a::ExprData::IndexAccess(expr_node, expr_node1) => todo!(),
-        in_a::ExprData::Cast(expr_node, rtype_node) => todo!(),
+        in_a::ExprData::ArrayInitExact(expr_nodes) => {
+            let expr_nodes = expr_nodes
+                .into_iter()
+                .map(|expr| tr_expr(ctx, env, expr))
+                .collect::<Result<_, _>>()?;
+            out_a::ExprData::ArrayInitExact(expr_nodes)
+        }
+        in_a::ExprData::ArrayInitRepeat(expr_node, size) => {
+            let expr_node = tr_expr(ctx, env, *expr_node)?;
+            out_a::ExprData::ArrayInitRepeat(Box::new(expr_node), size)
+        }
+        in_a::ExprData::IndexAccess(expr1, expr2) => {
+            let expr1 = tr_expr(ctx, env, *expr1)?;
+            let expr2 = tr_expr(ctx, env, *expr2)?;
+            out_a::ExprData::IndexAccess(Box::new(expr1), Box::new(expr2))
+        }
+        in_a::ExprData::Cast(expr_node, rtype_node) => {
+            let expr_node = tr_expr(ctx, env, *expr_node)?;
+            let tp = env.resolve_type(ctx, rtype_node)?;
+            out_a::ExprData::Cast(Box::new(expr_node), tp)
+        }
     };
     let expr = out_a::ExprNode { data, pos };
     Ok(expr)
+}
+
+fn tr_clause(
+    ctx: &mut Context,
+    env: &mut Env,
+    cl: in_a::MatchClause,
+) -> Result<out_a::MatchClause, InternalError> {
+    env.new_scope();
+
+    let pattern = tr_pattern(ctx, env, cl.pattern)?;
+
+    let expr = tr_expr(ctx, env, cl.expr)?;
+
+    let cl = out_a::MatchClause {
+        pattern,
+        expr,
+        pos: cl.pos,
+    };
+    env.leave_scope();
+    Ok(cl)
+}
+
+fn tr_pattern(
+    ctx: &mut Context,
+    env: &mut Env,
+    pattern: in_a::PatternNode,
+) -> Result<out_a::PatternNode, InternalError> {
+    let pos = pattern.pos;
+    let data = match pattern.data {
+        in_a::PatternData::Wildcard => out_a::PatternData::Wildcard,
+        in_a::PatternData::Number(n) => out_a::PatternData::Number(n),
+        in_a::PatternData::Var(ident) => {
+            let name = ident.data;
+            env.add_local(name.clone());
+            out_a::PatternData::Var(name)
+        }
+        in_a::PatternData::Tuple(pattern_nodes) => {
+            let pattern_nodes = pattern_nodes
+                .into_iter()
+                .map(|pat| tr_pattern(ctx, env, pat))
+                .collect::<Result<_, _>>()?;
+            out_a::PatternData::Tuple(pattern_nodes)
+        }
+        in_a::PatternData::TupleCons(path, pattern_nodes) => match env.find_symbol(path) {
+            Ok(sym) => match sym {
+                ast::SymRef::Local(_) => {
+                    ctx.report(Diagnostic::error(&pos));
+                    out_a::PatternData::Error
+                }
+                ast::SymRef::Global(id) => {
+                    let pattern_nodes = pattern_nodes
+                        .into_iter()
+                        .map(|pat| tr_pattern(ctx, env, pat))
+                        .collect::<Result<_, _>>()?;
+                    out_a::PatternData::TupleCons(id, pattern_nodes)
+                }
+            },
+            Err(diag) => {
+                ctx.report(diag);
+                out_a::PatternData::Error
+            }
+        },
+    };
+    let node = out_a::PatternNode { data, pos };
+    Ok(node)
 }
