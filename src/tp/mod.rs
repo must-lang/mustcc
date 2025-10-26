@@ -107,6 +107,10 @@ impl Type {
         let tv = TVar::of_builtin(name);
         Type::named_var(tv, name)
     }
+
+    pub(crate) fn type_app(tvar: TVar, name: &str, tps: Vec<Type>) -> Type {
+        Type(TypeView::TypeApp(tvar, name.to_string(), tps))
+    }
 }
 
 impl Display for Type {
@@ -125,7 +129,7 @@ impl Display for Type {
             TypeView::UVar(uvar) => write!(f, "U?#{}", uvar.id().unwrap()),
             TypeView::Ptr(tp) => write!(f, "*{}", tp),
             TypeView::MutPtr(tp) => write!(f, "*mut {}", tp),
-            TypeView::Unknown => todo!(),
+            TypeView::Unknown => write!(f, "{{unknown}}"),
             TypeView::NumericUVar(uvar) => write!(f, "NU?#{}", uvar.id().unwrap()),
             TypeView::Tuple(items) => {
                 let items = items

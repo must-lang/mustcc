@@ -258,6 +258,7 @@ fn tr_enum(
         visibility: vis,
         id,
         name: it.name,
+        type_params: it.type_params,
         constructors,
         pos: it.pos,
         methods,
@@ -294,7 +295,7 @@ fn tr_cons(
                 id,
                 name,
                 pos,
-                params,
+                args: params,
             };
 
             Ok(it)
@@ -359,6 +360,7 @@ fn tr_struct(
         visibility: vis,
         id,
         name: it.name,
+        type_params: it.type_params,
         pos: it.pos,
         fields: it.fields,
         methods,
@@ -383,10 +385,11 @@ fn tr_func(env: &mut Env, it: in_a::Func) -> Result<out_a::Func, Diagnostic> {
         visibility: it.visibility,
         id,
         name: it.name,
-        pos: it.pos,
+        type_params: it.type_params,
         args: it.args,
         ret_type: it.ret_type,
         body: it.body,
+        pos: it.pos,
     };
 
     Ok(it)

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::{
     common::{NodeID, Position},
     symtable::SymTable,
-    tp::Type,
+    tp::{TVar, Type},
 };
 
 #[derive(Debug)]
@@ -16,6 +16,7 @@ pub struct Program {
 pub struct Func {
     pub id: NodeID,
     pub args: Vec<FnArg>,
+    pub params: Vec<(String, TVar)>,
     pub name: String,
     pub ret_type: Type,
     pub body: ExprNode,

@@ -95,12 +95,15 @@ pub fn make_dep_tree(
 fn get_tvars(info: &TypeInfo, node_map: &HashMap<NodeID, SymInfo>) -> HashSet<TVar> {
     let mut set = HashSet::new();
     match &info.kind {
-        TypeKind::Struct { fields } => {
+        TypeKind::Struct { params, fields } => {
             for (_, field) in fields {
                 set.extend(get_tvars_of_type(&field))
             }
         }
-        TypeKind::Enum { constructors } => {
+        TypeKind::Enum {
+            params,
+            constructors,
+        } => {
             for cons in constructors {
                 match node_map.get(&cons) {
                     Some(info) => match &info.kind {
@@ -115,7 +118,7 @@ fn get_tvars(info: &TypeInfo, node_map: &HashMap<NodeID, SymInfo>) -> HashSet<TV
                 }
             }
         }
-        _ => todo!(),
+        _ => (),
     };
     set
 }

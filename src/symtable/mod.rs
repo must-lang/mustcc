@@ -89,10 +89,17 @@ impl SymInfo {
 
 #[derive(Debug)]
 pub enum SymKind {
-    Func { args: Vec<Type>, ret: Type },
+    Func {
+        params: Vec<TVar>,
+        args: Vec<Type>,
+        ret: Type,
+    },
     Struct(TVar),
     Enum(TVar),
-    EnumCons { args: Vec<Type>, parent: NodeID },
+    EnumCons {
+        args: Vec<Type>,
+        parent: NodeID,
+    },
 }
 
 #[derive(Debug)]
@@ -105,7 +112,16 @@ pub struct TypeInfo {
 
 #[derive(Debug)]
 pub enum TypeKind {
-    Primitive { size: usize },
-    Struct { fields: HashMap<String, Type> },
-    Enum { constructors: Vec<NodeID> },
+    LocalVar,
+    Primitive {
+        size: usize,
+    },
+    Struct {
+        params: Vec<TVar>,
+        fields: HashMap<String, Type>,
+    },
+    Enum {
+        params: Vec<TVar>,
+        constructors: Vec<NodeID>,
+    },
 }

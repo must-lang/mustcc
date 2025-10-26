@@ -2,8 +2,9 @@ pub mod ast;
 mod env;
 
 use std::collections::HashMap;
+use std::hash::Hash;
 
-use crate::common::NodeID;
+use crate::common::{Ident, NodeID};
 use crate::error::InternalError;
 use crate::error::context::Context;
 use crate::error::diagnostic::{Diagnostic, Label};
@@ -83,108 +84,159 @@ fn tr_module(
                     functions.push(func);
                 }
             }
-            in_a::ModuleItem::Struct(s) => {
-                let tvar = env.get_tvar(s.id)?;
-                let mut fields = HashMap::new();
-                for (name, tp) in s.fields {
-                    let tp = env.resolve_type(ctx, tp)?;
-                    let name = name.data;
-                    match fields.insert(name, tp) {
-                        Some(_) => panic!("field already defined"),
-                        None => (),
-                    }
-                }
-                let methods = s
-                    .methods
-                    .iter()
-                    .map(|func| (func.name.name_str(), func.id))
-                    .collect();
-
-                let kind = TypeKind::Struct { fields };
-
-                let type_info = TypeInfo {
-                    name: s.name.name_str(),
-                    pos: s.pos.clone(),
-                    methods,
-                    kind,
-                };
-
-                env.add_type_info(tvar, type_info);
-                let sym_info = SymInfo::build(s.name.data.clone(), s.pos, SymKind::Struct(tvar))
-                    .with_attributes(s.attributes);
-                env.add_sym_info(s.id, sym_info);
-                for method in s.methods {
-                    let func = tr_func(ctx, env, method, Some((tvar, s.name.data.clone())))?;
-                    if let Some(func) = func {
-                        functions.push(func);
-                    }
-                }
-            }
-            in_a::ModuleItem::Enum(e) => {
-                let tvar = env.get_tvar(e.id)?;
-
-                let mut constructors = vec![];
-                for cons in e.constructors {
-                    match cons {
-                        in_a::Constructor::Tuple {
-                            attributes,
-                            id,
-                            name,
-                            pos,
-                            params,
-                        } => {
-                            let args = params
-                                .into_iter()
-                                .map(|param| env.resolve_type(ctx, param))
-                                .collect::<Result<_, _>>()?;
-                            constructors.push(id);
-                            let sym_info = SymInfo::build(
-                                name.name_str(),
-                                pos,
-                                SymKind::EnumCons { args, parent: e.id },
-                            )
-                            .with_attributes(attributes);
-                            env.add_sym_info(id, sym_info);
-                            id
-                        }
-                        in_a::Constructor::Struct {
-                            attributes,
-                            id,
-                            name,
-                            pos,
-                            params,
-                        } => todo!(),
-                    };
-                }
-                let methods = e
-                    .methods
-                    .iter()
-                    .map(|func| (func.name.name_str(), func.id))
-                    .collect();
-
-                let kind = TypeKind::Enum { constructors };
-
-                let type_info = TypeInfo {
-                    name: e.name.name_str(),
-                    pos: e.pos.clone(),
-                    kind,
-                    methods,
-                };
-
-                env.add_type_info(tvar, type_info);
-                let sym_info = SymInfo::build(e.name.data.clone(), e.pos, SymKind::Enum(tvar))
-                    .with_attributes(e.attributes);
-                env.add_sym_info(e.id, sym_info);
-                for method in e.methods {
-                    let func = tr_func(ctx, env, method, Some((tvar, e.name.data.clone())))?;
-                    if let Some(func) = func {
-                        functions.push(func);
-                    }
-                }
-            }
+            in_a::ModuleItem::Struct(s) => tr_struct(ctx, env, &mut functions, s)?,
+            in_a::ModuleItem::Enum(e) => tr_enum(ctx, env, &mut functions, e)?,
         }
     }
     Ok(functions)
+}
+
+fn tr_enum(
+    ctx: &mut Context,
+    env: &mut Env,
+    functions: &mut Vec<ast::Func>,
+    e: in_a::Enum,
+) -> Result<(), InternalError> {
+    let tvar = env.get_tvar(e.id)?;
+    let mut constructors = vec![];
+    let mut params = HashMap::new();
+    env.new_scope();
+    for param in e.type_params {
+        let tv = TVar::new();
+        let name = param.data;
+        env.add_local_type_var(name.clone(), tv);
+        // todo: check if duplicate
+        params.insert(name, tv);
+    }
+    for cons in e.constructors {
+        match cons {
+            in_a::Constructor::Tuple {
+                attributes,
+                id,
+                name,
+                pos,
+                args: params,
+            } => {
+                let args = params
+                    .into_iter()
+                    .map(|param| env.resolve_type(ctx, param))
+                    .collect::<Result<_, _>>()?;
+                constructors.push(id);
+                let sym_info = SymInfo::build(
+                    name.name_str(),
+                    pos,
+                    SymKind::EnumCons { args, parent: e.id },
+                )
+                .with_attributes(attributes);
+                env.add_sym_info(id, sym_info);
+                id
+            }
+            in_a::Constructor::Struct {
+                attributes,
+                id,
+                name,
+                pos,
+                fields: params,
+            } => todo!(),
+        };
+    }
+    let methods = e
+        .methods
+        .iter()
+        .map(|func| (func.name.name_str(), func.id))
+        .collect();
+    let kind = TypeKind::Enum {
+        params: params.values().map(|tv| *tv).collect(),
+        constructors,
+    };
+    let type_info = TypeInfo {
+        name: e.name.name_str(),
+        pos: e.pos.clone(),
+        kind,
+        methods,
+    };
+    env.add_type_info(tvar, type_info);
+    let sym_info = SymInfo::build(e.name.data.clone(), e.pos.clone(), SymKind::Enum(tvar))
+        .with_attributes(e.attributes);
+    env.add_sym_info(e.id, sym_info);
+    env.leave_scope();
+    Ok(for mut method in e.methods {
+        method.type_params = params
+            .keys()
+            .map(|k| Ident {
+                data: k.clone(),
+                pos: e.pos.clone(),
+            })
+            .chain(method.type_params.into_iter())
+            .collect();
+        let func = tr_func(ctx, env, method, Some((tvar, e.name.data.clone())))?;
+        if let Some(func) = func {
+            functions.push(func);
+        }
+    })
+}
+
+fn tr_struct(
+    ctx: &mut Context,
+    env: &mut Env,
+    functions: &mut Vec<ast::Func>,
+    s: in_a::Struct,
+) -> Result<(), InternalError> {
+    let tvar = env.get_tvar(s.id)?;
+    let mut fields = HashMap::new();
+    let mut params = HashMap::new();
+    env.new_scope();
+    for param in s.type_params {
+        let tv = TVar::new();
+        let name = param.data;
+        env.add_local_type_var(name.clone(), tv);
+        // todo: check if duplicate
+        params.insert(name, tv);
+    }
+
+    for (name, tp) in s.fields {
+        let tp = env.resolve_type(ctx, tp)?;
+        let name = name.data;
+        match fields.insert(name, tp) {
+            Some(_) => panic!("field already defined"),
+            None => (),
+        }
+    }
+    let methods = s
+        .methods
+        .iter()
+        .map(|func| (func.name.name_str(), func.id))
+        .collect();
+
+    let kind = TypeKind::Struct {
+        params: params.values().map(|tv| *tv).collect(),
+        fields,
+    };
+    let type_info = TypeInfo {
+        name: s.name.name_str(),
+        pos: s.pos.clone(),
+        methods,
+        kind,
+    };
+    env.add_type_info(tvar, type_info);
+    let sym_info = SymInfo::build(s.name.data.clone(), s.pos.clone(), SymKind::Struct(tvar))
+        .with_attributes(s.attributes);
+    env.add_sym_info(s.id, sym_info);
+    env.leave_scope();
+    Ok(for mut method in s.methods {
+        method.type_params = params
+            .keys()
+            .map(|k| Ident {
+                data: k.clone(),
+                pos: s.pos.clone(),
+            })
+            .chain(method.type_params.into_iter())
+            .collect();
+        let func = tr_func(ctx, env, method, Some((tvar, s.name.data.clone())))?;
+        if let Some(func) = func {
+            functions.push(func);
+        }
+    })
 }
 
 fn tr_func(
@@ -194,6 +246,22 @@ fn tr_func(
     parent: Option<(TVar, String)>,
 ) -> Result<Option<ast::Func>, InternalError> {
     env.new_scope();
+    let mut params = vec![];
+    let mut named_params = vec![];
+    for param in func.type_params {
+        let tv = TVar::new();
+        let name = param.data;
+        env.add_local_type_var(name.clone(), tv);
+        params.push(tv);
+        named_params.push((name.clone(), tv));
+        let type_info = TypeInfo {
+            name,
+            pos: param.pos,
+            methods: HashMap::new(),
+            kind: TypeKind::LocalVar,
+        };
+        env.add_type_info(tv, type_info);
+    }
     let ret_type = match func.ret_type {
         Some(tp) => env.resolve_type(ctx, tp)?,
         None => Type::unit(),
@@ -208,7 +276,7 @@ fn tr_func(
                 tp,
                 pos,
             } => {
-                env.add_local(name.name_str());
+                env.add_local_var(name.name_str());
                 let tp = env.resolve_type(ctx, tp)?;
                 args_tp.push(tp.clone());
                 out_a::FnArg {
@@ -220,7 +288,7 @@ fn tr_func(
             }
             in_a::FnArg::NSelf { is_mut, pos } => {
                 let name = "self".to_string();
-                env.add_local(name.clone());
+                env.add_local_var(name.clone());
                 let tp = match &parent {
                     Some(p) => Type::named_var(p.0, &p.1),
                     None => {
@@ -238,7 +306,7 @@ fn tr_func(
             }
             in_a::FnArg::PtrSelf(pos) => {
                 let name = "self".to_string();
-                env.add_local(name.clone());
+                env.add_local_var(name.clone());
                 let tp = match &parent {
                     Some(p) => Type::ptr(Type::named_var(p.0, &p.1)),
                     None => {
@@ -256,7 +324,7 @@ fn tr_func(
             }
             in_a::FnArg::MutPtrSelf(pos) => {
                 let name = "self".to_string();
-                env.add_local(name.clone());
+                env.add_local_var(name.clone());
                 let tp = match &parent {
                     Some(p) => Type::mut_ptr(Type::named_var(p.0, &p.1)),
                     None => {
@@ -277,6 +345,7 @@ fn tr_func(
     }
 
     let sym_kind = SymKind::Func {
+        params,
         args: args_tp,
         ret: ret_type.clone(),
     };
@@ -302,6 +371,7 @@ fn tr_func(
     let func = out_a::Func {
         id: func.id,
         name: func.name.name_str(),
+        params: named_params,
         args,
         ret_type,
         body,
@@ -372,7 +442,7 @@ fn tr_expr(
             tp,
             expr,
         } => {
-            env.add_local(name.name_str());
+            env.add_local_var(name.name_str());
             let tp = match tp {
                 Some(tp) => Some(env.resolve_type(ctx, tp)?),
                 None => None,
@@ -537,7 +607,7 @@ fn tr_pattern(
         in_a::PatternData::Number(n) => out_a::PatternData::Number(n),
         in_a::PatternData::Var(ident) => {
             let name = ident.data;
-            env.add_local(name.clone());
+            env.add_local_var(name.clone());
             out_a::PatternData::Var(name)
         }
         in_a::PatternData::Tuple(pattern_nodes) => {

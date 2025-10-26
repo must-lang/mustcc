@@ -1,8 +1,15 @@
-use std::collections::{BTreeSet, HashMap};
+use std::{
+    collections::{BTreeSet, HashMap},
+    hash::Hash,
+};
 
 use crate::{
     common::{NodeID, Path},
-    error::{InternalError, context::Context, diagnostic::Diagnostic},
+    error::{
+        InternalError,
+        context::Context,
+        diagnostic::{Diagnostic, Label},
+    },
     mod_tree::{ScopeInfo, scope::Symbol},
     parser::ast::{RTypeData, RTypeNode},
     resolve::ast::SymRef,
@@ -16,12 +23,17 @@ pub struct Env {
     node_tvar_map: HashMap<NodeID, TVar>,
     node_map: HashMap<NodeID, SymInfo>,
     tvar_map: HashMap<TVar, TypeInfo>,
-    local_scopes: Vec<BTreeSet<String>>,
+    local_scopes: Vec<HashMap<String, LocalBinding>>,
+}
+
+enum LocalBinding {
+    Var,
+    TypeVar(TVar),
 }
 
 impl Env {
     pub(crate) fn new_scope(&mut self) {
-        self.local_scopes.push(BTreeSet::new())
+        self.local_scopes.push(HashMap::new())
     }
 
     pub(crate) fn resolve_type(
@@ -38,14 +50,29 @@ impl Env {
                         return Ok(Type::unknown());
                     }
                 };
-                match sym_ref {
-                    SymRef::Local(_) => panic!("local type definitons not supported"),
-                    SymRef::Global(id) => {
-                        let tv = self.get_tvar(id)?;
-                        let name = path.to_string();
-                        Type::named_var(tv.clone(), &name)
+                let tv = match sym_ref {
+                    SymRef::Local(s) => {
+                        let binding = match self.find_local_var_kind(s) {
+                            Some(b) => b,
+                            None => todo!(),
+                        };
+                        match binding {
+                            LocalBinding::Var => {
+                                ctx.report(
+                                    Diagnostic::error(&ret_type.pos).with_label(
+                                        Label::new(&ret_type.pos)
+                                            .with_msg(format!("expected type, found variable")),
+                                    ),
+                                );
+                                return Ok(Type::unknown());
+                            }
+                            LocalBinding::TypeVar(tvar) => *tvar,
+                        }
                     }
-                }
+                    SymRef::Global(id) => self.get_tvar(id)?,
+                };
+                let name = path.to_string();
+                Type::named_var(tv.clone(), &name)
             }
             RTypeData::Fun(args, ret) => {
                 let args = args
@@ -76,7 +103,42 @@ impl Env {
                 let tp = self.resolve_type(ctx, *tp)?;
                 Type::mut_ptr(tp)
             }
-            RTypeData::TypeApp(path, rtype_nodes) => todo!(),
+            RTypeData::TypeApp(path, tps) => {
+                let tps = tps
+                    .into_iter()
+                    .map(|tp| self.resolve_type(ctx, tp))
+                    .collect::<Result<_, _>>()?;
+                let sym_ref = match self.find_symbol(path.clone()) {
+                    Ok(sym) => sym,
+                    Err(diag) => {
+                        ctx.report(diag);
+                        return Ok(Type::unknown());
+                    }
+                };
+                let tv = match sym_ref {
+                    SymRef::Local(s) => {
+                        let binding = match self.find_local_var_kind(s) {
+                            Some(b) => b,
+                            None => todo!(),
+                        };
+                        match binding {
+                            LocalBinding::Var => {
+                                ctx.report(
+                                    Diagnostic::error(&ret_type.pos).with_label(
+                                        Label::new(&ret_type.pos)
+                                            .with_msg(format!("expected type, found variable")),
+                                    ),
+                                );
+                                return Ok(Type::unknown());
+                            }
+                            LocalBinding::TypeVar(tvar) => *tvar,
+                        }
+                    }
+                    SymRef::Global(id) => self.get_tvar(id)?,
+                };
+                let name = path.to_string();
+                Type::type_app(tv.clone(), &name, tps)
+            }
         })
     }
 
@@ -87,11 +149,20 @@ impl Env {
         }
     }
 
+    pub(crate) fn find_local_var_kind(&self, str: String) -> Option<&LocalBinding> {
+        for scope in self.local_scopes.iter().rev() {
+            if let Some(binding) = scope.get(&str) {
+                return Some(binding);
+            }
+        }
+        None
+    }
+
     pub(crate) fn find_symbol(&self, path: Path) -> Result<SymRef, Diagnostic> {
         if let Some(id) = path.clone().if_single() {
             let str = id.name_str();
             for scope in self.local_scopes.iter().rev() {
-                if scope.contains(&str) {
+                if let Some(_) = scope.get(&str) {
                     return Ok(SymRef::Local(str));
                 }
             }
@@ -119,11 +190,18 @@ impl Env {
         }
     }
 
-    pub(crate) fn add_local(&mut self, name: String) {
+    pub(crate) fn add_local_var(&mut self, name: String) {
         self.local_scopes
             .last_mut()
             .expect("cant add without a local scope")
-            .insert(name);
+            .insert(name, LocalBinding::Var);
+    }
+
+    pub(crate) fn add_local_type_var(&mut self, name: String, tv: TVar) {
+        self.local_scopes
+            .last_mut()
+            .expect("cant add without a local scope")
+            .insert(name, LocalBinding::TypeVar(tv));
     }
 
     pub fn finish(self) -> SymTable {
