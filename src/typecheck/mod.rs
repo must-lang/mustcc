@@ -313,7 +313,7 @@ fn check_expr(
             }
         }
         in_a::ExprData::NumLit(lit) => {
-            let tp = Type::numeric_uvar();
+            let tp = env.numeric_uvar(&pos);
             if !unify(exp_tp, &tp) {
                 ctx.report(error::type_mismatch(pos, exp_tp, &tp));
             }

@@ -78,4 +78,10 @@ impl Env {
     pub(crate) fn expected_ret(&self) -> Type {
         self.expected_ret.clone()
     }
+
+    pub(crate) fn numeric_uvar(&mut self, pos: &Position) -> Type {
+        let tp = Type::numeric_uvar();
+        self.uvars.push((tp.clone(), pos.clone()));
+        tp
+    }
 }

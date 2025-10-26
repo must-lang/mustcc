@@ -94,7 +94,7 @@ impl Type {
         todo!()
     }
 
-    pub(crate) fn numeric_uvar() -> Type {
+    pub fn numeric_uvar() -> Type {
         Type(TypeView::NumericUVar(UVar::new()))
     }
 
