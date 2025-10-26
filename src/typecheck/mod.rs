@@ -48,7 +48,7 @@ fn tr_func(
 
     let body = check_expr(ctx, sym_table, &mut env, func.body, &func.ret_type, false)?;
 
-    env.finish()?;
+    env.finish(ctx)?;
 
     let func = out_a::Func {
         name: func.name,
@@ -122,7 +122,7 @@ fn check_expr(
             }
         },
         in_a::ExprData::FunCall(expr, expr_nodes) => {
-            let fn_tp = Type::fresh_uvar();
+            let fn_tp = env.fresh_uvar(&pos);
             let expr_pos = expr.pos.clone();
             let ch_expr = check_expr(ctx, sym_table, env, *expr, &fn_tp, false)?;
             let (args_tp, ret) = match fn_tp.view() {
@@ -162,7 +162,7 @@ fn check_expr(
             }
         }
         in_a::ExprData::FieldAccess(expr, field_name) => {
-            let tp = Type::fresh_uvar();
+            let tp = env.fresh_uvar(&pos);
             let expr = check_expr(ctx, sym_table, env, *expr, &tp, exp_mut)?;
             let field_tp = match tp.view() {
                 TypeView::NamedVar(tvar, _) | TypeView::Var(tvar) => {
@@ -228,7 +228,7 @@ fn check_expr(
         } => {
             let tp = match tp {
                 Some(tp) => tp,
-                None => Type::fresh_uvar(),
+                None => env.fresh_uvar(&pos),
             };
             env.new_scope();
             let expr = check_expr(ctx, sym_table, env, *expr, &tp, false)?;
@@ -245,7 +245,7 @@ fn check_expr(
             }
         }
         in_a::ExprData::If(pr, th, el) => {
-            let tp = Type::fresh_uvar();
+            let tp = env.fresh_uvar(&pos);
             let pr = check_expr(ctx, sym_table, env, *pr, &Type::bool(), false)?;
             let el = check_expr(ctx, sym_table, env, *el, &tp, exp_mut)?;
             let th = check_expr(ctx, sym_table, env, *th, &tp, exp_mut)?;
@@ -260,7 +260,7 @@ fn check_expr(
             }
         }
         in_a::ExprData::Assign(lval, rval) => {
-            let tp = Type::fresh_uvar();
+            let tp = env.fresh_uvar(&pos);
             let lval = check_expr(ctx, sym_table, env, *lval, &tp, true)?;
             let rval = check_expr(ctx, sym_table, env, *rval, &tp, false)?;
             if !unify(exp_tp, &Type::unit()) {
@@ -273,7 +273,7 @@ fn check_expr(
             }
         }
         in_a::ExprData::Ref(expr_node) => {
-            let tp = Type::fresh_uvar();
+            let tp = env.fresh_uvar(&pos);
             let expr = check_expr(ctx, sym_table, env, *expr_node, &tp, false)?;
             let tp = Type::ptr(tp);
             if !unify(exp_tp, &tp) {
@@ -285,7 +285,7 @@ fn check_expr(
             }
         }
         in_a::ExprData::RefMut(expr_node) => {
-            let tp = Type::fresh_uvar();
+            let tp = env.fresh_uvar(&pos);
             let expr = check_expr(ctx, sym_table, env, *expr_node, &tp, true)?;
             let tp = Type::mut_ptr(tp);
             if !unify(exp_tp, &tp) {
@@ -297,7 +297,7 @@ fn check_expr(
             }
         }
         in_a::ExprData::Deref(expr_node) => {
-            let in_tp = Type::fresh_uvar();
+            let in_tp = env.fresh_uvar(&pos);
             let tp = if exp_mut {
                 Type::mut_ptr(in_tp.clone())
             } else {
@@ -323,7 +323,7 @@ fn check_expr(
             let mut tps = vec![];
             let mut ch_exprs = vec![];
             for expr in exprs {
-                let tp = Type::fresh_uvar();
+                let tp = env.fresh_uvar(&pos);
                 let expr = check_expr(ctx, sym_table, env, expr, &tp, exp_mut)?;
                 tps.push(tp);
                 ch_exprs.push(expr);
@@ -332,7 +332,7 @@ fn check_expr(
         }
         in_a::ExprData::String(_) => todo!(),
         in_a::ExprData::MethodCall(expr, method_name, exprs) => {
-            let tp = Type::fresh_uvar();
+            let tp = env.fresh_uvar(&pos);
             let expr = check_expr(ctx, sym_table, env, *expr, &tp, false)?;
             let method_id = match tp.view() {
                 TypeView::Var(tvar) | TypeView::NamedVar(tvar, _) => {
@@ -451,7 +451,8 @@ fn check_expr(
             }
             for (f_name, expr) in items {
                 // check anyways to report errors
-                let _ = check_expr(ctx, sym_table, env, expr, &Type::fresh_uvar(), false)?;
+                let tp = env.fresh_uvar(&pos);
+                let _ = check_expr(ctx, sym_table, env, expr, &tp, false)?;
                 ctx.report(error::unbound_field(pos.clone(), f_name));
             }
             let tp = Type::named_var(*tvar, &name);
@@ -466,7 +467,7 @@ fn check_expr(
         }
         in_a::ExprData::Error => out_a::Expr::Error,
         in_a::ExprData::IndexAccess(arr, index) => {
-            let tp = Type::fresh_uvar();
+            let tp = env.fresh_uvar(&pos);
             let arr = check_expr(ctx, sym_table, env, *arr, &tp, exp_mut)?;
             let index = check_expr(ctx, sym_table, env, *index, &Type::builtin("usize"), false)?;
             let tp = match tp.view() {
@@ -520,7 +521,7 @@ fn check_expr(
                 ctx.report(error::expected_mutable(pos.clone()));
             }
             let size = exprs.len();
-            let tp = Type::fresh_uvar();
+            let tp = env.fresh_uvar(&pos);
             let exprs = exprs
                 .into_iter()
                 .map(|expr| check_expr(ctx, sym_table, env, expr, &tp, false))
@@ -535,7 +536,7 @@ fn check_expr(
             if exp_mut {
                 ctx.report(error::expected_mutable(pos.clone()));
             }
-            let tp = Type::fresh_uvar();
+            let tp = env.fresh_uvar(&pos);
             let expr = check_expr(ctx, sym_table, env, *expr, &tp, false)?;
             let tp = Type::array(size, tp);
             if !unify(exp_tp, &tp) {

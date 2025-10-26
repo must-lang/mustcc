@@ -82,7 +82,7 @@ impl Type {
         Type(TypeView::Unknown)
     }
 
-    pub(crate) fn fresh_uvar() -> Type {
+    pub fn fresh_uvar() -> Type {
         Type(TypeView::UVar(UVar::new()))
     }
 

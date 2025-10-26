@@ -53,3 +53,8 @@ pub(crate) fn unsolved_uvar(pos: Position, tp: &Type) -> Diagnostic {
     Diagnostic::error(&pos)
         .with_label(Label::new(&pos).with_msg(format!("unsolved unification variable `{}`", tp)))
 }
+
+pub(crate) fn cannot_infer_type(pos: Position) -> Diagnostic {
+    Diagnostic::error(&pos)
+        .with_label(Label::new(&pos).with_msg(format!("cannot infer type, please annotate")))
+}

@@ -1,6 +1,6 @@
 //! Unification variable and related functions.
 
-use crate::tp::{Type, TypeView};
+use super::{Type, TypeView};
 use std::{cell::RefCell, rc::Rc};
 
 /// Unification variable that can be substituted by some concrete type.
