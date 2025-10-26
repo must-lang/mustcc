@@ -76,6 +76,7 @@ impl Env {
                 let tp = self.resolve_type(ctx, *tp)?;
                 Type::mut_ptr(tp)
             }
+            RTypeData::TypeApp(path, rtype_nodes) => todo!(),
         })
     }
 

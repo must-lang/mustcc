@@ -85,7 +85,7 @@ pub struct Import {
 ///
 /// ```mst
 /// @attributes
-/// (pub) fn name(arg: type, mut arg: type) -> type {
+/// (pub) fn name<types>(arg: type, mut arg: type) -> type {
 ///     <expr>
 /// }
 ///
@@ -97,6 +97,7 @@ pub struct Func {
     pub attributes: Vec<RAttribute>,
     pub visibility: Visibility,
     pub name: Ident,
+    pub type_params: Vec<Ident>,
     pub args: Vec<FnArg>,
     pub ret_type: Option<RTypeNode>,
     pub body: Option<ExprNode>,
@@ -107,7 +108,7 @@ pub struct Func {
 ///
 /// ```mst
 /// @attributes
-/// (pub) struct Name {
+/// (pub) struct Name<types> {
 ///     field_name: type
 /// } with {
 ///     fn new() -> Name { ... }
@@ -118,6 +119,7 @@ pub struct Struct {
     pub attributes: Vec<RAttribute>,
     pub visibility: Visibility,
     pub name: Ident,
+    pub type_params: Vec<Ident>,
     pub fields: Vec<(Ident, RTypeNode)>,
     pub pos: Position,
     pub methods: Vec<Func>,
@@ -127,7 +129,7 @@ pub struct Struct {
 ///
 /// ```mst
 /// @attributes
-/// (pub) enum Name {
+/// (pub) enum Name<types> {
 ///     Cons1(arg1, arg2, arg3),
 ///     Cons2(arg4, arg5),
 /// } with {
@@ -139,6 +141,7 @@ pub struct Enum {
     pub attributes: Vec<RAttribute>,
     pub visibility: Visibility,
     pub name: Ident,
+    pub type_params: Vec<Ident>,
     pub constructors: Vec<Constructor>,
     pub pos: Position,
     pub methods: Vec<Func>,
@@ -436,4 +439,10 @@ pub enum RTypeData {
     /// x : fn(i32, i32) -> bool
     /// ```
     Fun(Vec<RTypeNode>, Box<RTypeNode>),
+
+    /// Type application.
+    /// ```mst
+    /// Vec<i32>
+    /// ```
+    TypeApp(Path, Vec<RTypeNode>),
 }

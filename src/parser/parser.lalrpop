@@ -26,6 +26,8 @@ match {
     "->",
     "=",
     "=>",
+    "<",
+    ">",
 
 } else {
     r#"[\!\#\$\%\&\+\-\/<=>\?@\^\|\\]+"#
@@ -159,14 +161,17 @@ Func: Func = {
     <attributes: RAttribute*>
     <start: @L>
     <visibility: Visibility> "fn" <name: FnIdent>
+    <type_params: ("<" <CommaSep<Ident>> ">")?>
     "(" <args: CommaSep<FnArg>> ")" <ret_type: ("->" <RTypeNode>)?>
     <body: FnBody>
     <end: @R> => {
         let pos = pg.make(start, end);
+        let type_params = type_params.unwrap_or(vec![]);
         Func {
             attributes,
             visibility,
             name,
+            type_params,
             args,
             ret_type,
             body,
@@ -179,6 +184,7 @@ Struct: Struct = {
     <attributes: RAttribute*>
     <start: @L>
     <visibility: Visibility> "struct" <name: Ident>
+    <type_params: ("<" <CommaSep<Ident>> ">")?>
     "{"
         <fields: CommaSep<FieldDecl>>
     "}"
@@ -189,10 +195,12 @@ Struct: Struct = {
      => {
         let pos = pg.make(start, end);
         let methods = methods.unwrap_or(vec![]);
+        let type_params = type_params.unwrap_or(vec![]);
         Struct {
             attributes,
             visibility,
             name,
+            type_params,
             fields,
             pos,
             methods,
@@ -204,6 +212,7 @@ Enum: Enum = {
     <attributes: RAttribute*>
     <start: @L>
     <visibility: Visibility> "enum" <name: Ident>
+    <type_params: ("<" <CommaSep<Ident>> ">")?>
     "{"
         <constructors: CommaSep<Constructor>>
     "}"
@@ -214,10 +223,12 @@ Enum: Enum = {
      => {
         let pos = pg.make(start, end);
         let methods = methods.unwrap_or(vec![]);
+        let type_params = type_params.unwrap_or(vec![]);
         Enum {
             attributes,
             visibility,
             name,
+            type_params,
             constructors,
             pos,
             methods,
@@ -390,6 +401,7 @@ RTypeNode: RTypeNode = {
 RTypeData: RTypeData = {
     #[precedence(level="0")]
     <id: Path> => RTypeData::Var(id),
+    <id: Path> "<" <tps: CommaSep<RTypeNode>> ">" => RTypeData::TypeApp(id, tps),
     "(" ")" => RTypeData::Tuple(vec![]),
 
     "[" <size: Number> "]" <tp: RTypeNode> =>
