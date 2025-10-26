@@ -24,6 +24,7 @@ pub enum TypeView {
     Fun(Vec<Type>, Box<Type>),
     Ptr(Box<Type>),
     MutPtr(Box<Type>),
+    TypeApp(TVar, String, Vec<Type>),
 }
 
 impl Type {
@@ -135,6 +136,14 @@ impl Display for Type {
                 write!(f, "({})", items)
             }
             TypeView::Array(size, tp) => write!(f, "[{}]{}", size, tp),
+            TypeView::TypeApp(_, s, items) => {
+                let items = items
+                    .iter()
+                    .map(|it| it.to_string())
+                    .collect::<Vec<String>>()
+                    .join(", ");
+                write!(f, "{}<{}>", s, items)
+            }
         }
     }
 }

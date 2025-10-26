@@ -147,5 +147,6 @@ fn get_tvars_of_type(tp: &Type) -> HashSet<TVar> {
         }
         crate::tp::TypeView::Ptr(_) => HashSet::new(),
         crate::tp::TypeView::MutPtr(_) => HashSet::new(),
+        crate::tp::TypeView::TypeApp(tvar, _, items) => todo!(),
     }
 }

@@ -380,7 +380,9 @@ fn check_expr(
                     TypeView::Array(_, _) => todo!(),
                     TypeView::Fun(items, _) => todo!(),
                     TypeView::Ptr(tp) | TypeView::MutPtr(tp) => todo!(),
+                    TypeView::TypeApp(tvar, _, items) => todo!(),
                 },
+                TypeView::TypeApp(tvar, _, items) => todo!(),
             };
             let method_info = sym_table.find_sym_info(method_id);
             let (mut args_tp, ret_tp) = match &method_info.kind {
@@ -493,6 +495,7 @@ fn check_expr(
                     todo!()
                     // type mismatch, expected array
                 }
+                TypeView::TypeApp(tvar, _, items) => todo!(),
             };
             if !unify(exp_tp, &tp) {
                 ctx.report(error::type_mismatch(pos, exp_tp, &tp));

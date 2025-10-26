@@ -36,6 +36,7 @@ impl Env {
     }
 
     pub(crate) fn finish(self, ctx: &mut Context) -> Result<(), InternalError> {
+        // TODO: also check inside compound types (or perform smart occurs check)
         for (tp, pos) in self.uvars {
             match tp.view() {
                 TypeView::UVar(uvar) => {
@@ -45,14 +46,7 @@ impl Env {
                 TypeView::NumericUVar(uvar) => {
                     uvar.resolve(Type::builtin("i32"));
                 }
-                TypeView::Unknown
-                | TypeView::Var(_)
-                | TypeView::NamedVar(_, _)
-                | TypeView::Tuple(_)
-                | TypeView::Array(_, _)
-                | TypeView::Fun(_, _)
-                | TypeView::Ptr(_)
-                | TypeView::MutPtr(_) => continue,
+                _ => continue,
             }
         }
         Ok(())
