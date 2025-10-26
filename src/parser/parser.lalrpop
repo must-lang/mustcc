@@ -530,6 +530,7 @@ ExprF: ExprData = {
     <id: Path> => ExprData::Var(id),
     <num: Number> => ExprData::Number(num),
     <ch: CharLit> => ExprData::Char(ch),
+    <s: StringLit> => ExprData::String(s),
 
     <expr: ExprNode<ExprF>>
     "(" <args: CommaSep<ExprNode<Expr>>> ")" =>

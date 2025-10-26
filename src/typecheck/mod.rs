@@ -330,7 +330,14 @@ fn check_expr(
             }
             out_a::Expr::Tuple(ch_exprs)
         }
-        in_a::ExprData::String(_) => todo!(),
+        in_a::ExprData::String(s) => {
+            let size = s.as_bytes().len();
+            let tp = Type::array(size, Type::builtin("u8"));
+            if !unify(&exp_tp, &tp) {
+                ctx.report(error::type_mismatch(pos.clone(), &exp_tp, &tp));
+            }
+            out_a::Expr::String(s)
+        }
         in_a::ExprData::MethodCall(expr, method_name, exprs) => {
             let tp = env.fresh_uvar(&pos);
             let expr = check_expr(ctx, sym_table, env, *expr, &tp, false)?;

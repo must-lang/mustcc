@@ -88,6 +88,7 @@ pub enum Expr {
     },
     Error,
     Char(u8),
+    String(String),
     ArrayInitRepeat(Box<Expr>, usize),
     ArrayInitExact(Vec<Expr>),
     While {
