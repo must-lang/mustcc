@@ -39,6 +39,13 @@ impl Type {
                     None => TypeView::UVar(uvar.clone()),
                 }
             }
+            TypeView::NumericUVar(uvar) => {
+                let root = uvar.find();
+                match root.try_resolved() {
+                    Some(tp) => tp.view(),
+                    None => TypeView::NumericUVar(uvar.clone()),
+                }
+            }
             _ => self.0.clone(),
         }
     }
@@ -63,8 +70,8 @@ impl Type {
         Type(TypeView::MutPtr(Box::new(tp)))
     }
 
-    pub(crate) fn named_var(tvar: TVar, name: String) -> Type {
-        Type(TypeView::NamedVar(tvar, name))
+    pub(crate) fn named_var(tvar: TVar, name: &str) -> Type {
+        Type(TypeView::NamedVar(tvar, name.to_string()))
     }
 
     pub(crate) fn fun(args: Vec<Type>, ret: Type) -> Type {
@@ -94,6 +101,11 @@ impl Type {
     pub(crate) fn array(size: usize, tp: Type) -> Type {
         Type(TypeView::Array(size, Box::new(tp)))
     }
+
+    pub(crate) fn builtin(name: &str) -> Type {
+        let tv = TVar::of_builtin(name);
+        Type::named_var(tv, name)
+    }
 }
 
 impl Display for Type {
@@ -113,7 +125,7 @@ impl Display for Type {
             TypeView::Ptr(tp) => write!(f, "*{}", tp),
             TypeView::MutPtr(tp) => write!(f, "*mut {}", tp),
             TypeView::Unknown => todo!(),
-            TypeView::NumericUVar(uvar) => todo!(),
+            TypeView::NumericUVar(uvar) => write!(f, "NU?#{}", uvar.id().unwrap()),
             TypeView::Tuple(items) => {
                 let items = items
                     .iter()
@@ -122,7 +134,7 @@ impl Display for Type {
                     .join(", ");
                 write!(f, "({})", items)
             }
-            TypeView::Array(_, _) => todo!(),
+            TypeView::Array(size, tp) => write!(f, "[{}]{}", size, tp),
         }
     }
 }
@@ -133,7 +145,8 @@ impl Display for Type {
 #[must_use]
 pub fn unify(exp_tp: &Type, act_tp: &Type) -> bool {
     match (exp_tp.view(), act_tp.view()) {
-        (TypeView::UVar(uv1), TypeView::UVar(uv2)) => {
+        (TypeView::NumericUVar(uv1), TypeView::NumericUVar(uv2))
+        | (TypeView::UVar(uv1), TypeView::UVar(uv2)) => {
             uv1.union(&uv2);
             true
         }
@@ -162,7 +175,7 @@ pub fn unify(exp_tp: &Type, act_tp: &Type) -> bool {
             .all(|(it1, it2)| unify(it1, it2)),
 
         (TypeView::NumericUVar(uvar), TypeView::Var(tv) | TypeView::NamedVar(tv, _)) => {
-            if tv.is_numeric() {
+            if !uvar.occurs(&act_tp) && tv.is_numeric() {
                 uvar.resolve(act_tp.clone());
                 true
             } else {
@@ -171,7 +184,7 @@ pub fn unify(exp_tp: &Type, act_tp: &Type) -> bool {
         }
 
         (TypeView::Var(tv) | TypeView::NamedVar(tv, _), TypeView::NumericUVar(uvar)) => {
-            if tv.is_numeric() {
+            if !uvar.occurs(&exp_tp) && tv.is_numeric() {
                 uvar.resolve(exp_tp.clone());
                 true
             } else {

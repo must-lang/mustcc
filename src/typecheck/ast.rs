@@ -87,4 +87,11 @@ pub enum Expr {
         in_tp: Type,
     },
     Error,
+    Char(u8),
+    ArrayInitRepeat(Box<Expr>, usize),
+    ArrayInitExact(Vec<Expr>),
+    While {
+        pred: Box<Expr>,
+        block: Box<Expr>,
+    },
 }

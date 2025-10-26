@@ -43,7 +43,7 @@ impl Env {
                     SymRef::Global(id) => {
                         let tv = self.get_tvar(id)?;
                         let name = path.to_string();
-                        Type::named_var(tv.clone(), name)
+                        Type::named_var(tv.clone(), &name)
                     }
                 }
             }

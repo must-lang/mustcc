@@ -63,7 +63,8 @@ impl UVar {
     ///
     /// Panics if variable was already resolved or isn't a representative.
     pub fn resolve(&self, tp: Type) {
-        match &mut *self.0.borrow_mut() {
+        let u = self.find();
+        match &mut *u.0.borrow_mut() {
             UVarData::Resolved(_) => panic!("unif variable already resolved"),
             UVarData::Link(_) => panic!("cant resolve non-root unif variables"),
             u => *u = UVarData::Resolved(tp),

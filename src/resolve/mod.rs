@@ -57,7 +57,7 @@ fn get_tvar_maybe_builtin(attributes: &Vec<crate::common::RAttribute>) -> TVar {
     }
 
     let tvar = match builtin_name {
-        Some(name) => TVar::of_builtin(name),
+        Some(name) => TVar::of_builtin(&name),
         None => TVar::new(),
     };
 
@@ -222,7 +222,7 @@ fn tr_func(
                 let name = "self".to_string();
                 env.add_local(name.clone());
                 let tp = match &parent {
-                    Some(p) => Type::named_var(p.0, p.1.clone()),
+                    Some(p) => Type::named_var(p.0, &p.1),
                     None => {
                         ctx.report(Diagnostic::error(&pos));
                         return Ok(None);
@@ -240,7 +240,7 @@ fn tr_func(
                 let name = "self".to_string();
                 env.add_local(name.clone());
                 let tp = match &parent {
-                    Some(p) => Type::ptr(Type::named_var(p.0, p.1.clone())),
+                    Some(p) => Type::ptr(Type::named_var(p.0, &p.1)),
                     None => {
                         ctx.report(Diagnostic::error(&pos));
                         return Ok(None);
@@ -258,7 +258,7 @@ fn tr_func(
                 let name = "self".to_string();
                 env.add_local(name.clone());
                 let tp = match &parent {
-                    Some(p) => Type::mut_ptr(Type::named_var(p.0, p.1.clone())),
+                    Some(p) => Type::mut_ptr(Type::named_var(p.0, &p.1)),
                     None => {
                         ctx.report(Diagnostic::error(&pos));
                         return Ok(None);

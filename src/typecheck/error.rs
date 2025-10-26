@@ -11,7 +11,8 @@ pub(crate) fn type_mismatch(pos: Position, exp: &Type, got: &Type) -> Diagnostic
 }
 
 pub(crate) fn expected_mutable(pos: Position) -> Diagnostic {
-    todo!()
+    Diagnostic::error(&pos)
+        .with_label(Label::new(&pos).with_msg(format!("cannot assign to immutable variable")))
 }
 
 pub(crate) fn not_a_function(pos: Position) -> Diagnostic {

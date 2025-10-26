@@ -7,6 +7,7 @@ mod env;
 mod error;
 
 use crate::error::InternalError;
+use crate::error::diagnostic::Diagnostic;
 use crate::resolve::ast as in_a;
 use crate::symtable::{SymKind, SymTable, TypeInfo, TypeKind};
 use crate::tp::{Type, TypeView, unify};
@@ -101,7 +102,7 @@ fn check_expr(
                         let sym = sym_table.find_sym_info(*parent);
                         let tp = match sym.kind {
                             SymKind::Enum(tv) => {
-                                let tp = Type::named_var(tv, sym.name.clone());
+                                let tp = Type::named_var(tv, &sym.name);
                                 if args.is_empty() {
                                     tp
                                 } else {
@@ -453,7 +454,7 @@ fn check_expr(
                 let _ = check_expr(ctx, sym_table, env, expr, &Type::fresh_uvar(), false)?;
                 ctx.report(error::unbound_field(pos.clone(), f_name));
             }
-            let tp = Type::named_var(*tvar, name.clone());
+            let tp = Type::named_var(*tvar, &name);
             if !unify(exp_tp, &tp) {
                 ctx.report(error::type_mismatch(pos, exp_tp, &tp));
             }
@@ -464,12 +465,90 @@ fn check_expr(
             }
         }
         in_a::ExprData::Error => out_a::Expr::Error,
-        in_a::ExprData::IndexAccess(expr_node, expr_node1) => todo!(),
-        in_a::ExprData::Match(expr_node, match_clauses) => todo!(),
-        in_a::ExprData::While(expr_node, expr_node1) => todo!(),
+        in_a::ExprData::IndexAccess(arr, index) => {
+            let tp = Type::fresh_uvar();
+            let arr = check_expr(ctx, sym_table, env, *arr, &tp, exp_mut)?;
+            let index = check_expr(ctx, sym_table, env, *index, &Type::builtin("usize"), false)?;
+            let tp = match tp.view() {
+                TypeView::Array(_, tp) => *tp,
+                TypeView::Unknown => todo!(),
+                TypeView::UVar(uvar) | TypeView::NumericUVar(uvar) => {
+                    todo!()
+                    // cannot infer type
+                }
+                TypeView::Var(_)
+                | TypeView::NamedVar(_, _)
+                | TypeView::Tuple(_)
+                | TypeView::Fun(_, _)
+                | TypeView::Ptr(_)
+                | TypeView::MutPtr(_) => {
+                    todo!()
+                    // type mismatch, expected array
+                }
+            };
+            if !unify(exp_tp, &tp) {
+                ctx.report(error::type_mismatch(pos, exp_tp, &tp));
+            }
+            out_a::Expr::While {
+                pred: Box::new(arr),
+                block: Box::new(index),
+            }
+        }
+        in_a::ExprData::Match(expr_node, match_clauses) => {
+            ctx.report(
+                Diagnostic::error(&pos).with_note("Pattern matching not yet supported".into()),
+            );
+            out_a::Expr::Error
+        }
+        in_a::ExprData::While(pred, block) => {
+            if exp_mut {
+                ctx.report(error::expected_mutable(pos.clone()));
+            }
+            let pred = check_expr(ctx, sym_table, env, *pred, &Type::bool(), false)?;
+            let block = check_expr(ctx, sym_table, env, *block, &Type::unit(), false)?;
+            if !unify(exp_tp, &Type::unit()) {
+                ctx.report(error::type_mismatch(pos, exp_tp, &Type::unit()));
+            }
+            out_a::Expr::While {
+                pred: Box::new(pred),
+                block: Box::new(block),
+            }
+        }
         in_a::ExprData::Cast(expr_node, _) => todo!(),
-        in_a::ExprData::ArrayInitExact(expr_nodes) => todo!(),
-        in_a::ExprData::ArrayInitRepeat(expr_node, _) => todo!(),
-        in_a::ExprData::Char(_) => todo!(),
+        in_a::ExprData::ArrayInitExact(exprs) => {
+            if exp_mut {
+                ctx.report(error::expected_mutable(pos.clone()));
+            }
+            let size = exprs.len();
+            let tp = Type::fresh_uvar();
+            let exprs = exprs
+                .into_iter()
+                .map(|expr| check_expr(ctx, sym_table, env, expr, &tp, false))
+                .collect::<Result<_, _>>()?;
+            let tp = Type::array(size, tp);
+            if !unify(exp_tp, &tp) {
+                ctx.report(error::type_mismatch(pos, exp_tp, &tp));
+            }
+            out_a::Expr::ArrayInitExact(exprs)
+        }
+        in_a::ExprData::ArrayInitRepeat(expr, size) => {
+            if exp_mut {
+                ctx.report(error::expected_mutable(pos.clone()));
+            }
+            let tp = Type::fresh_uvar();
+            let expr = check_expr(ctx, sym_table, env, *expr, &tp, false)?;
+            let tp = Type::array(size, tp);
+            if !unify(exp_tp, &tp) {
+                ctx.report(error::type_mismatch(pos, exp_tp, &tp));
+            }
+            out_a::Expr::ArrayInitRepeat(Box::new(expr), size)
+        }
+        in_a::ExprData::Char(c) => {
+            let tp = Type::builtin("u8");
+            if !unify(exp_tp, &tp) {
+                ctx.report(error::type_mismatch(pos, exp_tp, &tp));
+            }
+            out_a::Expr::Char(c)
+        }
     })
 }

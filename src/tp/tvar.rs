@@ -30,8 +30,8 @@ impl TVar {
         self.id == 1
     }
 
-    pub(crate) fn of_builtin(name: String) -> TVar {
-        let id = match name.as_str() {
+    pub(crate) fn of_builtin(name: &str) -> TVar {
+        let id = match name {
             "never" => 1,
             "bool" => 2,
             "order" => 3,
