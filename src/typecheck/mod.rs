@@ -142,7 +142,7 @@ fn check_expr(
                     if let Some(expr) = args_iter.next() {
                         check_expr(ctx, sym_table, env, expr, arg, false)
                     } else {
-                        ctx.report(error::missing_argument(id, arg));
+                        ctx.report(error::missing_argument(pos.clone(), id, arg));
                         Ok(out_a::Expr::Error)
                     }
                 })
@@ -405,7 +405,7 @@ fn check_expr(
                 let arg = if let Some(expr) = args_iter.next() {
                     check_expr(ctx, sym_table, env, expr, arg, false)?
                 } else {
-                    ctx.report(error::missing_argument(id, arg));
+                    ctx.report(error::missing_argument(pos.clone(), id, arg));
                     out_a::Expr::Error
                 };
                 args.push(arg)

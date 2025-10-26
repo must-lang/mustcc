@@ -16,11 +16,13 @@ pub(crate) fn expected_mutable(pos: Position) -> Diagnostic {
 }
 
 pub(crate) fn not_a_function(pos: Position) -> Diagnostic {
-    todo!()
+    Diagnostic::error(&pos)
+        .with_label(Label::new(&pos).with_msg(format!("it's not a function and cannot be called")))
 }
 
-pub(crate) fn missing_argument(id: usize, arg: &Type) -> Diagnostic {
-    todo!()
+pub(crate) fn missing_argument(pos: Position, id: usize, tp: &Type) -> Diagnostic {
+    Diagnostic::error(&pos)
+        .with_label(Label::new(&pos).with_msg(format!("missing arg #{} of type {}", id, tp)))
 }
 
 pub(crate) fn unexpected_argument(id: usize, pos: Position) -> Diagnostic {
