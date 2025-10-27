@@ -1,10 +1,15 @@
 mod tvar;
 mod uvar;
 
-use std::fmt::Display;
+use std::{collections::HashMap, fmt::Display};
 
-pub use tvar::TVar;
+pub use tvar::{TVar, TVarKind};
 use uvar::UVar;
+
+use crate::{
+    common::Position,
+    error::diagnostic::{Diagnostic, Label},
+};
 
 /// The abstract type representation.
 ///
@@ -71,8 +76,13 @@ impl Type {
         Type(TypeView::MutPtr(Box::new(tp)))
     }
 
-    pub(crate) fn named_var(tvar: TVar, name: &str) -> Type {
-        Type(TypeView::NamedVar(tvar, name.to_string()))
+    pub(crate) fn named_var(tvar: TVar, name: &str, pos: &Position) -> Result<Type, Diagnostic> {
+        if let TVarKind::TypeCons(n) = tvar.kind() {
+            let diag = Diagnostic::error(pos)
+                .with_label(Label::new(pos).with_msg(format!("missing {} type parameters", n)));
+            return Err(diag);
+        }
+        Ok(Type(TypeView::NamedVar(tvar, name.to_string())))
     }
 
     pub(crate) fn fun(args: Vec<Type>, ret: Type) -> Type {
@@ -105,11 +115,66 @@ impl Type {
 
     pub(crate) fn builtin(name: &str) -> Type {
         let tv = TVar::of_builtin(name);
-        Type::named_var(tv, name)
+        Type::named_var(tv, name, &Position::nowhere()).unwrap()
     }
 
-    pub(crate) fn type_app(tvar: TVar, name: &str, tps: Vec<Type>) -> Type {
-        Type(TypeView::TypeApp(tvar, name.to_string(), tps))
+    pub(crate) fn type_app(
+        tvar: TVar,
+        name: &str,
+        tps: Vec<Type>,
+        pos: &Position,
+    ) -> Result<Type, Diagnostic> {
+        if let TVarKind::TypeCons(n) = tvar.kind() {
+            if tps.len() != n.into() {
+                let diag = Diagnostic::error(pos).with_label(Label::new(pos).with_msg(format!(
+                    "expected {} type parameters, but got {}",
+                    n,
+                    tps.len()
+                )));
+                return Err(diag);
+            }
+            Ok(Type(TypeView::TypeApp(tvar, name.to_string(), tps)))
+        } else {
+            let diag = Diagnostic::error(pos).with_label(
+                Label::new(pos).with_msg(format!("this type doesn't take type parameters")),
+            );
+            return Err(diag);
+        }
+    }
+
+    pub fn substitute(&self, subst: &HashMap<TVar, Type>) -> Type {
+        match self.view() {
+            TypeView::Unknown | TypeView::UVar(_) | TypeView::NumericUVar(_) => self.clone(),
+            TypeView::NamedVar(tvar, _) | TypeView::Var(tvar) => match subst.get(&tvar) {
+                Some(tp) => tp.clone(),
+                None => self.clone(),
+            },
+            TypeView::Tuple(items) => {
+                let tps = items.iter().map(|tp| tp.substitute(subst)).collect();
+                Type::tuple(tps)
+            }
+            TypeView::Array(size, tp) => {
+                let tp = tp.substitute(subst);
+                Type::array(size, tp)
+            }
+            TypeView::Fun(items, ret) => {
+                let tps = items.iter().map(|tp| tp.substitute(subst)).collect();
+                let ret = ret.substitute(subst);
+                Type::fun(tps, ret)
+            }
+            TypeView::Ptr(tp) => {
+                let tp = tp.substitute(subst);
+                Type::ptr(tp)
+            }
+            TypeView::MutPtr(tp) => {
+                let tp = tp.substitute(subst);
+                Type::mut_ptr(tp)
+            }
+            TypeView::TypeApp(tvar, name, items) => {
+                let tps = items.iter().map(|tp| tp.substitute(subst)).collect();
+                Type::type_app(tvar, &name, tps, &Position::nowhere()).unwrap()
+            }
+        }
     }
 }
 
@@ -178,6 +243,15 @@ pub fn unify(exp_tp: &Type, act_tp: &Type) -> bool {
                 uvar.resolve(exp_tp.clone());
                 true
             }
+        }
+
+        (TypeView::TypeApp(tv1, _, tps1), TypeView::TypeApp(tv2, _, tps2)) => {
+            let ret = tv1 == tv2;
+            let tps = tps1
+                .iter()
+                .zip(tps2.iter())
+                .all(|(it1, it2)| unify(it1, it2));
+            ret && tps
         }
 
         (TypeView::Array(s1, tp1), TypeView::Array(s2, tp2)) => s1 == s2 && unify(&tp1, &tp2),

@@ -2,6 +2,7 @@ pub mod ast;
 mod env;
 
 use std::collections::{HashMap, HashSet};
+use std::num::NonZeroUsize;
 
 use crate::common::{Ident, NodeID};
 use crate::error::InternalError;
@@ -9,7 +10,7 @@ use crate::error::context::Context;
 use crate::error::diagnostic::{Diagnostic, Label};
 use crate::resolve::env::Env;
 use crate::symtable::{SymInfo, SymKind, TypeInfo, TypeKind};
-use crate::tp::{TVar, Type};
+use crate::tp::{TVar, TVarKind, Type};
 
 use crate::mod_tree::ast as in_a;
 use ast as out_a;
@@ -33,18 +34,18 @@ fn generate_tvars(tvar_map: &mut HashMap<NodeID, TVar>, ast: &in_a::Module) {
             in_a::ModuleItem::Module(module) => generate_tvars(tvar_map, module),
             in_a::ModuleItem::Func(_) => continue,
             in_a::ModuleItem::Struct(s) => {
-                let tvar = get_tvar_maybe_builtin(&s.attributes);
+                let tvar = get_tvar_maybe_builtin(s.type_params.len(), &s.attributes);
                 tvar_map.insert(s.id, tvar);
             }
             in_a::ModuleItem::Enum(e) => {
-                let tvar = get_tvar_maybe_builtin(&e.attributes);
+                let tvar = get_tvar_maybe_builtin(e.type_params.len(), &e.attributes);
                 tvar_map.insert(e.id, tvar);
             }
         }
     }
 }
 
-fn get_tvar_maybe_builtin(attributes: &Vec<crate::common::RAttribute>) -> TVar {
+fn get_tvar_maybe_builtin(params: usize, attributes: &Vec<crate::common::RAttribute>) -> TVar {
     let mut builtin_name = None;
 
     for attribute in attributes {
@@ -58,7 +59,14 @@ fn get_tvar_maybe_builtin(attributes: &Vec<crate::common::RAttribute>) -> TVar {
 
     let tvar = match builtin_name {
         Some(name) => TVar::of_builtin(&name),
-        None => TVar::new(),
+        None => {
+            if params == 0 {
+                TVar::new(TVarKind::Type)
+            } else {
+                let len = unsafe { NonZeroUsize::new_unchecked(params) };
+                TVar::new(TVarKind::TypeCons(len))
+            }
+        }
     };
 
     tvar
@@ -101,7 +109,7 @@ fn tr_enum(
     let mut params = HashMap::new();
     env.new_scope();
     for param in e.type_params {
-        let tv = TVar::new();
+        let tv = TVar::new(TVarKind::Parameter);
         let name = param.data;
         env.add_local_type_var(name.clone(), tv);
         // todo: check if duplicate
@@ -200,7 +208,7 @@ fn tr_struct(
     let mut params = HashMap::new();
     env.new_scope();
     for param in s.type_params {
-        let tv = TVar::new();
+        let tv = TVar::new(TVarKind::Parameter);
         let name = param.data;
         env.add_local_type_var(name.clone(), tv);
         // todo: check if duplicate
@@ -262,7 +270,7 @@ fn tr_func(
     let mut params = HashSet::new();
     let mut named_params = vec![];
     for param in func.type_params {
-        let tv = TVar::new();
+        let tv = TVar::new(TVarKind::Parameter);
         let name = param.data;
         env.add_local_type_var(name.clone(), tv);
         params.insert(tv);
@@ -303,7 +311,13 @@ fn tr_func(
                 let name = "self".to_string();
                 env.add_local_var(name.clone());
                 let tp = match &parent {
-                    Some(p) => Type::named_var(p.0, &p.1),
+                    Some(p) => {
+                        if params.len() == 0 {
+                            Type::named_var(p.0, &p.1, &pos).unwrap()
+                        } else {
+                            todo!()
+                        }
+                    }
                     None => {
                         ctx.report(Diagnostic::error(&pos));
                         return Ok(None);
@@ -321,12 +335,19 @@ fn tr_func(
                 let name = "self".to_string();
                 env.add_local_var(name.clone());
                 let tp = match &parent {
-                    Some(p) => Type::ptr(Type::named_var(p.0, &p.1)),
+                    Some(p) => {
+                        if params.len() == 0 {
+                            Type::named_var(p.0, &p.1, &pos).unwrap()
+                        } else {
+                            todo!()
+                        }
+                    }
                     None => {
                         ctx.report(Diagnostic::error(&pos));
                         return Ok(None);
                     }
                 };
+                let tp = Type::ptr(tp);
                 args_tp.push(tp.clone());
                 out_a::FnArg {
                     is_mut: false,
@@ -339,12 +360,19 @@ fn tr_func(
                 let name = "self".to_string();
                 env.add_local_var(name.clone());
                 let tp = match &parent {
-                    Some(p) => Type::mut_ptr(Type::named_var(p.0, &p.1)),
+                    Some(p) => {
+                        if params.len() == 0 {
+                            Type::named_var(p.0, &p.1, &pos).unwrap()
+                        } else {
+                            todo!()
+                        }
+                    }
                     None => {
                         ctx.report(Diagnostic::error(&pos));
                         return Ok(None);
                     }
                 };
+                let tp = Type::mut_ptr(tp);
                 args_tp.push(tp.clone());
                 out_a::FnArg {
                     is_mut: false,

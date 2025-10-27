@@ -14,7 +14,7 @@ use crate::{
     parser::ast::{RTypeData, RTypeNode},
     resolve::ast::SymRef,
     symtable::{SymInfo, SymTable, TypeInfo},
-    tp::{TVar, Type},
+    tp::{TVar, TVarKind, Type},
 };
 
 pub struct Env {
@@ -72,7 +72,13 @@ impl Env {
                     SymRef::Global(id) => self.get_tvar(id)?,
                 };
                 let name = path.to_string();
-                Type::named_var(tv.clone(), &name)
+                match Type::named_var(tv.clone(), &name, &path.try_last().unwrap().pos) {
+                    Ok(tp) => tp,
+                    Err(diag) => {
+                        ctx.report(diag);
+                        return Ok(Type::unknown());
+                    }
+                }
             }
             RTypeData::Fun(args, ret) => {
                 let args = args
@@ -137,7 +143,13 @@ impl Env {
                     SymRef::Global(id) => self.get_tvar(id)?,
                 };
                 let name = path.to_string();
-                Type::type_app(tv.clone(), &name, tps)
+                match Type::type_app(tv.clone(), &name, tps, &path.try_last().unwrap().pos) {
+                    Ok(tp) => tp,
+                    Err(diag) => {
+                        ctx.report(diag);
+                        return Ok(Type::unknown());
+                    }
+                }
             }
         })
     }
@@ -198,6 +210,7 @@ impl Env {
     }
 
     pub(crate) fn add_local_type_var(&mut self, name: String, tv: TVar) {
+        assert_eq!(tv.kind(), TVarKind::Parameter);
         self.local_scopes
             .last_mut()
             .expect("cant add without a local scope")
@@ -222,7 +235,7 @@ impl Env {
             )))
     }
 
-    pub(crate) fn add_type_info(&mut self, id: TVar, type_info: crate::symtable::TypeInfo) {
+    pub(crate) fn add_type_info(&mut self, id: TVar, type_info: TypeInfo) {
         self.tvar_map.insert(id, type_info);
     }
 }

@@ -1,18 +1,45 @@
+use std::{hash::Hash, num::NonZeroUsize};
+
 static mut COUNTER: usize = 64;
 
-/// A type variable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum TVarKind {
+    Parameter,
+    Type,
+    TypeCons(NonZeroUsize),
+}
+
+/// A type variable.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Ord)]
 pub struct TVar {
     id: usize,
+    kind: TVarKind,
+}
+
+impl PartialOrd for TVar {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.id.partial_cmp(&other.id)
+    }
+}
+
+impl Hash for TVar {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+    }
 }
 
 impl TVar {
     /// Create a fresh type variable.
-    pub(crate) fn new() -> Self {
+    pub(crate) fn new(kind: TVarKind) -> Self {
         unsafe {
             COUNTER += 1;
-            Self { id: COUNTER }
+            Self { id: COUNTER, kind }
         }
+    }
+
+    /// Returns the kind of type variable.
+    pub fn kind(&self) -> TVarKind {
+        self.kind
     }
 
     /// Returns the underlying type id.
@@ -47,7 +74,10 @@ impl TVar {
             "isize" => 13,
             _ => panic!("not a builtin name: {}", name),
         };
-        TVar { id }
+        TVar {
+            id,
+            kind: TVarKind::Type,
+        }
     }
 
     pub(crate) fn is_builtin(&self) -> bool {

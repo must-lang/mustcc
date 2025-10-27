@@ -1,5 +1,6 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
+use crate::common::Position;
 use crate::error::context::Context;
 
 mod ast;
@@ -10,7 +11,7 @@ use crate::error::InternalError;
 use crate::error::diagnostic::Diagnostic;
 use crate::resolve::ast as in_a;
 use crate::symtable::{SymKind, SymTable, TypeInfo, TypeKind};
-use crate::tp::{Type, TypeView, unify};
+use crate::tp::{TVar, Type, TypeView, unify};
 use crate::typecheck::env::Env;
 use ast as out_a;
 
@@ -89,7 +90,11 @@ fn check_expr(
                 let sym = sym_table.find_sym_info(node_id);
                 match &sym.kind {
                     SymKind::Func { params, args, ret } => {
-                        let tp = Type::fun(args.clone(), ret.clone());
+                        let subst: HashMap<TVar, Type> = params
+                            .iter()
+                            .map(|tv| (*tv, env.fresh_uvar(&pos)))
+                            .collect();
+                        let tp = Type::fun(args.clone(), ret.clone()).substitute(&subst);
                         if !unify(exp_tp, &tp) {
                             ctx.report(error::type_mismatch(pos, exp_tp, &tp));
                         }
@@ -99,17 +104,41 @@ fn check_expr(
                         }
                     }
                     SymKind::EnumCons { id, args, parent } => {
-                        let sym = sym_table.find_sym_info(*parent);
-                        let tp = match sym.kind {
-                            SymKind::Enum(tv) => {
-                                let tp = Type::named_var(tv, &sym.name);
-                                if args.is_empty() {
-                                    tp
-                                } else {
-                                    Type::fun(args.clone(), tp)
+                        let sym_info = sym_table.find_sym_info(*parent);
+                        let (params, tvar, name) = match &sym_info.kind {
+                            SymKind::Func { params, args, ret } => todo!(),
+                            SymKind::Enum(tvar) => {
+                                let type_info = sym_table.find_type_info(*tvar);
+                                match &type_info.kind {
+                                    TypeKind::Enum {
+                                        params,
+                                        constructors,
+                                    } => (params, tvar, type_info.name.clone()),
+                                    _ => unreachable!("this is 100% a struct"),
                                 }
                             }
-                            _ => unreachable!("parent of an enum cons is enum"),
+                            SymKind::EnumCons { id, args, parent } => todo!(),
+                            SymKind::Struct(tvar) => todo!(),
+                        };
+                        let subst: HashMap<TVar, Type> = params
+                            .iter()
+                            .map(|tv| (*tv, env.fresh_uvar(&pos)))
+                            .collect();
+                        let tp = if params.len() == 0 {
+                            Type::named_var(*tvar, &name, &pos).unwrap()
+                        } else {
+                            Type::type_app(
+                                *tvar,
+                                &name,
+                                subst.values().map(|tp| tp.clone()).collect(),
+                                &pos,
+                            )
+                            .unwrap()
+                        };
+                        let tp = if args.is_empty() {
+                            tp
+                        } else {
+                            Type::fun(args.clone(), tp).substitute(&subst)
                         };
                         if !unify(exp_tp, &tp) {
                             ctx.report(error::type_mismatch(pos, exp_tp, &tp));
@@ -448,15 +477,20 @@ fn check_expr(
                     }
                 }
             };
+            let subst: HashMap<TVar, Type> = params
+                .iter()
+                .map(|tv| (*tv, env.fresh_uvar(&pos)))
+                .collect();
             let mut initializers = HashMap::new();
             for (f_name, f_type) in fields {
+                let tp = f_type.substitute(&subst);
                 match items.remove(f_name) {
                     Some(expr) => {
-                        let expr = check_expr(ctx, sym_table, env, expr, &f_type, false)?;
+                        let expr = check_expr(ctx, sym_table, env, expr, &tp, false)?;
                         initializers.insert(f_name.clone(), expr);
                     }
                     None => {
-                        ctx.report(error::missing_field(pos.clone(), f_name, f_type));
+                        ctx.report(error::missing_field(pos.clone(), f_name, &tp));
                     }
                 }
             }
@@ -466,7 +500,17 @@ fn check_expr(
                 let _ = check_expr(ctx, sym_table, env, expr, &tp, false)?;
                 ctx.report(error::unbound_field(pos.clone(), f_name));
             }
-            let tp = Type::named_var(*tvar, &name);
+            let tp = if params.len() == 0 {
+                Type::named_var(*tvar, &name, &pos).unwrap()
+            } else {
+                Type::type_app(
+                    *tvar,
+                    &name,
+                    subst.values().map(|tp| tp.clone()).collect(),
+                    &pos,
+                )
+                .unwrap()
+            };
             if !unify(exp_tp, &tp) {
                 ctx.report(error::type_mismatch(pos, exp_tp, &tp));
             }
