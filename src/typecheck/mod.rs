@@ -79,7 +79,7 @@ fn check_expr(
                     ctx.report(error::expected_mutable(pos.clone()));
                 }
                 if !unify(exp_tp, tp) {
-                    ctx.report(error::type_mismatch(pos, exp_tp, tp));
+                    ctx.report(error::type_mismatch(pos, exp_tp.clone(), tp.clone()));
                 }
                 out_a::Expr::LocalVar {
                     name,
@@ -96,7 +96,7 @@ fn check_expr(
                             .collect();
                         let tp = Type::fun(args.clone(), ret.clone()).substitute(&subst);
                         if !unify(exp_tp, &tp) {
-                            ctx.report(error::type_mismatch(pos, exp_tp, &tp));
+                            ctx.report(error::type_mismatch(pos, exp_tp.clone(), tp.clone()));
                         }
                         out_a::Expr::GlobalVar {
                             id: node_id,
@@ -124,16 +124,18 @@ fn check_expr(
                             .iter()
                             .map(|tv| (*tv, env.fresh_uvar(&pos)))
                             .collect();
-                        let tp = if params.len() == 0 {
-                            Type::named_var(*tvar, &name, &pos).unwrap()
-                        } else {
-                            Type::type_app(
-                                *tvar,
-                                &name,
-                                subst.values().map(|tp| tp.clone()).collect(),
-                                &pos,
-                            )
-                            .unwrap()
+                        let tp = unsafe {
+                            if params.len() == 0 {
+                                Type::named_var(*tvar, &name, &pos).unwrap_unchecked()
+                            } else {
+                                Type::type_app(
+                                    *tvar,
+                                    &name,
+                                    subst.values().map(|tp| tp.clone()).collect(),
+                                    &pos,
+                                )
+                                .unwrap_unchecked()
+                            }
                         };
                         let tp = if args.is_empty() {
                             tp
@@ -141,7 +143,7 @@ fn check_expr(
                             Type::fun(args.clone(), tp).substitute(&subst)
                         };
                         if !unify(exp_tp, &tp) {
-                            ctx.report(error::type_mismatch(pos, exp_tp, &tp));
+                            ctx.report(error::type_mismatch(pos, exp_tp.clone(), tp.clone()));
                         }
                         out_a::Expr::GlobalVar { id: node_id, tp }
                     }
@@ -171,7 +173,7 @@ fn check_expr(
                     if let Some(expr) = args_iter.next() {
                         check_expr(ctx, sym_table, env, expr, arg, false)
                     } else {
-                        ctx.report(error::missing_argument(pos.clone(), id, arg));
+                        ctx.report(error::missing_argument(pos.clone(), id, arg.clone()));
                         Ok(out_a::Expr::Error)
                     }
                 })
@@ -181,7 +183,7 @@ fn check_expr(
                 ctx.report(error::unexpected_argument(id, arg.pos));
             }
             if !unify(exp_tp, &ret) {
-                ctx.report(error::type_mismatch(pos, exp_tp, &ret));
+                ctx.report(error::type_mismatch(pos, exp_tp.clone(), *ret.clone()));
             }
             out_a::Expr::FunCall {
                 expr: Box::new(ch_expr),
@@ -200,23 +202,23 @@ fn check_expr(
                         TypeKind::Struct { params, fields } => match fields.get(&field_name) {
                             Some(tp) => tp,
                             None => {
-                                ctx.report(error::no_such_field(field_name, &tp, &pos));
+                                ctx.report(error::no_such_field(field_name, tp, &pos));
                                 return Ok(out_a::Expr::Error);
                             }
                         },
                         _ => {
-                            ctx.report(error::no_such_field(field_name, &tp, &pos));
+                            ctx.report(error::no_such_field(field_name, tp, &pos));
                             return Ok(out_a::Expr::Error);
                         }
                     }
                 }
                 _ => {
-                    ctx.report(error::no_such_field(field_name, &tp, &pos));
+                    ctx.report(error::no_such_field(field_name, tp, &pos));
                     return Ok(out_a::Expr::Error);
                 }
             };
             if !unify(exp_tp, field_tp) {
-                ctx.report(error::type_mismatch(pos, exp_tp, field_tp));
+                ctx.report(error::type_mismatch(pos, exp_tp.clone(), field_tp.clone()));
             }
             out_a::Expr::FieldAccess {
                 object: Box::new(expr),
@@ -264,7 +266,7 @@ fn check_expr(
             env.leave_scope();
             env.add_var(name.clone(), is_mut, tp.clone());
             if !unify(exp_tp, &Type::unit()) {
-                ctx.report(error::type_mismatch(pos, exp_tp, &Type::unit()));
+                ctx.report(error::type_mismatch(pos, exp_tp.clone(), Type::unit()));
             };
             out_a::Expr::Let {
                 name,
@@ -279,7 +281,7 @@ fn check_expr(
             let el = check_expr(ctx, sym_table, env, *el, &tp, exp_mut)?;
             let th = check_expr(ctx, sym_table, env, *th, &tp, exp_mut)?;
             if !unify(exp_tp, &tp) {
-                ctx.report(error::type_mismatch(pos, exp_tp, &tp));
+                ctx.report(error::type_mismatch(pos, exp_tp.clone(), tp.clone()));
             };
             out_a::Expr::If {
                 pred: Box::new(pr),
@@ -293,7 +295,7 @@ fn check_expr(
             let lval = check_expr(ctx, sym_table, env, *lval, &tp, true)?;
             let rval = check_expr(ctx, sym_table, env, *rval, &tp, false)?;
             if !unify(exp_tp, &Type::unit()) {
-                ctx.report(error::type_mismatch(pos, exp_tp, &Type::unit()));
+                ctx.report(error::type_mismatch(pos, exp_tp.clone(), Type::unit()));
             }
             out_a::Expr::Assign {
                 lval: Box::new(lval),
@@ -306,7 +308,7 @@ fn check_expr(
             let expr = check_expr(ctx, sym_table, env, *expr_node, &tp, false)?;
             let tp = Type::ptr(tp);
             if !unify(exp_tp, &tp) {
-                ctx.report(error::type_mismatch(pos, exp_tp, &tp));
+                ctx.report(error::type_mismatch(pos, exp_tp.clone(), tp.clone()));
             }
             out_a::Expr::Ref {
                 expr: Box::new(expr),
@@ -318,7 +320,7 @@ fn check_expr(
             let expr = check_expr(ctx, sym_table, env, *expr_node, &tp, true)?;
             let tp = Type::mut_ptr(tp);
             if !unify(exp_tp, &tp) {
-                ctx.report(error::type_mismatch(pos, exp_tp, &tp));
+                ctx.report(error::type_mismatch(pos, exp_tp.clone(), tp.clone()));
             }
             out_a::Expr::RefMut {
                 expr: Box::new(expr),
@@ -334,7 +336,7 @@ fn check_expr(
             };
             let expr = check_expr(ctx, sym_table, env, *expr_node, &tp, false)?;
             if !unify(exp_tp, &in_tp) {
-                ctx.report(error::type_mismatch(pos, exp_tp, &in_tp));
+                ctx.report(error::type_mismatch(pos, exp_tp.clone(), in_tp.clone()));
             }
             out_a::Expr::Deref {
                 expr: Box::new(expr),
@@ -344,7 +346,7 @@ fn check_expr(
         in_a::ExprData::NumLit(lit) => {
             let tp = env.numeric_uvar(&pos);
             if !unify(exp_tp, &tp) {
-                ctx.report(error::type_mismatch(pos, exp_tp, &tp));
+                ctx.report(error::type_mismatch(pos, exp_tp.clone(), tp.clone()));
             }
             out_a::Expr::NumLit(lit, tp)
         }
@@ -362,8 +364,8 @@ fn check_expr(
         in_a::ExprData::String(s) => {
             let size = s.as_bytes().len();
             let tp = Type::array(size, Type::builtin("u8"));
-            if !unify(&exp_tp, &tp) {
-                ctx.report(error::type_mismatch(pos.clone(), &exp_tp, &tp));
+            if !unify(exp_tp, &tp) {
+                ctx.report(error::type_mismatch(pos.clone(), exp_tp.clone(), tp));
             }
             out_a::Expr::String(s)
         }
@@ -383,7 +385,7 @@ fn check_expr(
                 }
                 TypeView::Unknown => return Ok(out_a::Expr::Error),
                 TypeView::UVar(uvar) | TypeView::NumericUVar(uvar) => {
-                    ctx.report(error::unsolved_uvar(pos, &tp));
+                    ctx.report(error::unsolved_uvar(pos, tp));
                     return Ok(out_a::Expr::Error);
                 }
                 TypeView::Tuple(items) => todo!(),
@@ -402,7 +404,7 @@ fn check_expr(
                     }
                     TypeView::Unknown => return Ok(out_a::Expr::Error),
                     TypeView::UVar(uvar) | TypeView::NumericUVar(uvar) => {
-                        ctx.report(error::unsolved_uvar(pos, &tp));
+                        ctx.report(error::unsolved_uvar(pos, *tp));
                         return Ok(out_a::Expr::Error);
                     }
                     TypeView::Tuple(items) => todo!(),
@@ -426,7 +428,7 @@ fn check_expr(
                 }
             };
             if !unify(first_arg, &tp) {
-                ctx.report(error::type_mismatch(pos.clone(), first_arg, &tp));
+                ctx.report(error::type_mismatch(pos.clone(), first_arg.clone(), tp));
             }
             let mut args_iter = exprs.into_iter();
             let mut id = 1;
@@ -436,7 +438,7 @@ fn check_expr(
                 let arg = if let Some(expr) = args_iter.next() {
                     check_expr(ctx, sym_table, env, expr, arg, false)?
                 } else {
-                    ctx.report(error::missing_argument(pos.clone(), id, arg));
+                    ctx.report(error::missing_argument(pos.clone(), id, arg.clone()));
                     out_a::Expr::Error
                 };
                 args.push(arg)
@@ -446,7 +448,7 @@ fn check_expr(
                 ctx.report(error::unexpected_argument(id, arg.pos));
             }
             if !unify(exp_tp, &ret_tp) {
-                ctx.report(error::type_mismatch(pos, exp_tp, &ret_tp));
+                ctx.report(error::type_mismatch(pos, exp_tp.clone(), ret_tp.clone()));
             }
             let method_tp = Type::fun(args_tp.clone(), ret_tp.clone());
             let callee = out_a::Expr::GlobalVar {
@@ -490,7 +492,7 @@ fn check_expr(
                         initializers.insert(f_name.clone(), expr);
                     }
                     None => {
-                        ctx.report(error::missing_field(pos.clone(), f_name, &tp));
+                        ctx.report(error::missing_field(pos.clone(), f_name.clone(), tp));
                     }
                 }
             }
@@ -500,19 +502,21 @@ fn check_expr(
                 let _ = check_expr(ctx, sym_table, env, expr, &tp, false)?;
                 ctx.report(error::unbound_field(pos.clone(), f_name));
             }
-            let tp = if params.len() == 0 {
-                Type::named_var(*tvar, &name, &pos).unwrap()
-            } else {
-                Type::type_app(
-                    *tvar,
-                    &name,
-                    subst.values().map(|tp| tp.clone()).collect(),
-                    &pos,
-                )
-                .unwrap()
+            let tp = unsafe {
+                if params.len() == 0 {
+                    Type::named_var(*tvar, &name, &pos).unwrap_unchecked()
+                } else {
+                    Type::type_app(
+                        *tvar,
+                        &name,
+                        subst.values().map(|tp| tp.clone()).collect(),
+                        &pos,
+                    )
+                    .unwrap_unchecked()
+                }
             };
             if !unify(exp_tp, &tp) {
-                ctx.report(error::type_mismatch(pos, exp_tp, &tp));
+                ctx.report(error::type_mismatch(pos, exp_tp.clone(), tp.clone()));
             }
             out_a::Expr::StructCons {
                 id,
@@ -544,7 +548,7 @@ fn check_expr(
                 TypeView::TypeApp(tvar, _, items) => todo!(),
             };
             if !unify(exp_tp, &tp) {
-                ctx.report(error::type_mismatch(pos, exp_tp, &tp));
+                ctx.report(error::type_mismatch(pos, exp_tp.clone(), tp));
             }
             out_a::Expr::While {
                 pred: Box::new(arr),
@@ -564,7 +568,7 @@ fn check_expr(
             let pred = check_expr(ctx, sym_table, env, *pred, &Type::bool(), false)?;
             let block = check_expr(ctx, sym_table, env, *block, &Type::unit(), false)?;
             if !unify(exp_tp, &Type::unit()) {
-                ctx.report(error::type_mismatch(pos, exp_tp, &Type::unit()));
+                ctx.report(error::type_mismatch(pos, exp_tp.clone(), Type::unit()));
             }
             out_a::Expr::While {
                 pred: Box::new(pred),
@@ -584,7 +588,7 @@ fn check_expr(
                 .collect::<Result<_, _>>()?;
             let tp = Type::array(size, tp);
             if !unify(exp_tp, &tp) {
-                ctx.report(error::type_mismatch(pos, exp_tp, &tp));
+                ctx.report(error::type_mismatch(pos, exp_tp.clone(), tp));
             }
             out_a::Expr::ArrayInitExact(exprs)
         }
@@ -596,14 +600,14 @@ fn check_expr(
             let expr = check_expr(ctx, sym_table, env, *expr, &tp, false)?;
             let tp = Type::array(size, tp);
             if !unify(exp_tp, &tp) {
-                ctx.report(error::type_mismatch(pos, exp_tp, &tp));
+                ctx.report(error::type_mismatch(pos, exp_tp.clone(), tp));
             }
             out_a::Expr::ArrayInitRepeat(Box::new(expr), size)
         }
         in_a::ExprData::Char(c) => {
             let tp = Type::builtin("u8");
             if !unify(exp_tp, &tp) {
-                ctx.report(error::type_mismatch(pos, exp_tp, &tp));
+                ctx.report(error::type_mismatch(pos, exp_tp.clone(), tp));
             }
             out_a::Expr::Char(c)
         }

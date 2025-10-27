@@ -64,14 +64,16 @@ fn report_import_errors(ctx: &mut Context, old_tree: &ScopeInfo, id: &NodeID, im
             Some(_) => (),
             None => {
                 let name = match &import.alias {
-                    Some(name) => name,
-                    None => import.path.try_last().unwrap(),
+                    Some(name) => name.clone(),
+                    None => import.path.try_last().unwrap().clone(),
                 };
                 ctx.report(Diagnostic::error(&name.pos).with_label(
-                    Label::new(&name.pos).with_msg(format!(
-                        "cannot glob import from {}, it is not a namespace",
-                        name.data
-                    )),
+                    Label::new(&name.pos).with_msg(Box::new(move || {
+                        format!(
+                            "cannot glob import from {}, it is not a namespace",
+                            name.data
+                        )
+                    })),
                 ));
             }
         };

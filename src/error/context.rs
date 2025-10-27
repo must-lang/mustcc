@@ -11,7 +11,6 @@ use crate::{
 };
 
 /// Represents context of compilation.
-#[derive(Debug)]
 pub struct Context {
     renderer: Box<dyn DiagnosticRenderer>,
     diagnostics: Vec<Diagnostic>,

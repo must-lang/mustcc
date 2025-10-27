@@ -86,12 +86,11 @@ fn tr_module(
                 let module = match env.remove_module(&path) {
                     Some(m) => m,
                     None => {
-                        ctx.report(
-                            Diagnostic::error(&m.pos).with_label(
-                                Label::new(&m.pos)
-                                    .with_msg(format!("missing module: {}", m.name.name_str())),
-                            ),
-                        );
+                        ctx.report(Diagnostic::error(&m.pos).with_label(
+                            Label::new(&m.pos).with_msg(Box::new(move || {
+                                format!("missing module: {}", m.name.name_str())
+                            })),
+                        ));
                         continue;
                     }
                 };

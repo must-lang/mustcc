@@ -19,22 +19,26 @@ impl From<ParsingError> for Diagnostic {
     fn from(value: ParsingError) -> Self {
         match value {
             ParsingError::InvalidToken { pos } => Diagnostic::error(&pos)
-                .with_label(Label::new(&pos).with_msg(format!("Invalid token"))),
+                .with_label(Label::new(&pos).with_msg(Box::new(|| format!("Invalid token")))),
             ParsingError::UnrecognizedEof { pos, expected } => Diagnostic::error(&pos)
-                .with_label(Label::new(&pos).with_msg(format!("Unexpected end-of-file.")))
+                .with_label(
+                    Label::new(&pos).with_msg(Box::new(|| format!("Unexpected end-of-file."))),
+                )
                 .with_note(format!("Expected one of:\n{}", expected.join("\n"))),
             ParsingError::UnrecognizedToken {
                 pos,
                 token,
                 expected,
             } => Diagnostic::error(&pos)
-                .with_label(
-                    Label::new(&pos).with_msg(format!("Unexpected token: {}", token.bright_red())),
-                )
+                .with_label(Label::new(&pos).with_msg(Box::new(move || {
+                    format!("Unexpected token: {}", token.bright_red())
+                })))
                 .with_note(format!("Expected one of:\n{}", expected.join("\n"))),
-            ParsingError::ExtraToken { pos, token } => Diagnostic::error(&pos).with_label(
-                Label::new(&pos).with_msg(format!("Unexpected token: {}", token.bright_red())),
-            ),
+            ParsingError::ExtraToken { pos, token } => {
+                Diagnostic::error(&pos).with_label(Label::new(&pos).with_msg(Box::new(move || {
+                    format!("Unexpected token: {}", token.bright_red())
+                })))
+            }
         }
     }
 }

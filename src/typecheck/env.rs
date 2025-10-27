@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, ops::ControlFlow};
 
 use crate::{
     common::Position,
@@ -38,16 +38,7 @@ impl Env {
     pub(crate) fn finish(self, ctx: &mut Context) -> Result<(), InternalError> {
         // TODO: also check inside compound types (or perform smart occurs check)
         for (tp, pos) in self.uvars {
-            match tp.view() {
-                TypeView::UVar(uvar) => {
-                    ctx.report(error::cannot_infer_type(pos));
-                }
-
-                TypeView::NumericUVar(uvar) => {
-                    uvar.resolve(Type::builtin("i32"));
-                }
-                _ => continue,
-            }
+            check_resolved(ctx, tp, &pos);
         }
         Ok(())
     }
@@ -77,5 +68,38 @@ impl Env {
         let tp = Type::numeric_uvar();
         self.uvars.push((tp.clone(), pos.clone()));
         tp
+    }
+}
+
+fn check_resolved(ctx: &mut Context, tp: Type, pos: &Position) {
+    match tp.view() {
+        TypeView::UVar(_) => {
+            ctx.report(error::cannot_infer_type(pos));
+        }
+        TypeView::NumericUVar(uvar) => {
+            println!("Resolving {:?} at {:?}", uvar, pos);
+            uvar.resolve(Type::builtin("i32"));
+            println!("Resolved? {:?}", uvar.try_resolved());
+        }
+        TypeView::Unknown | TypeView::Var(_) | TypeView::NamedVar(_, _) => {}
+        TypeView::Tuple(items) => {
+            for it in items {
+                check_resolved(ctx, it, pos);
+            }
+        }
+        TypeView::Array(_, tp) => check_resolved(ctx, *tp, pos),
+        TypeView::Fun(items, ret) => {
+            for it in items {
+                check_resolved(ctx, it, pos);
+            }
+            check_resolved(ctx, *ret, pos);
+        }
+        TypeView::Ptr(tp) => check_resolved(ctx, *tp, pos),
+        TypeView::MutPtr(tp) => check_resolved(ctx, *tp, pos),
+        TypeView::TypeApp(_, _, items) => {
+            for it in items {
+                check_resolved(ctx, it, pos);
+            }
+        }
     }
 }

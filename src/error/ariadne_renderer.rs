@@ -63,6 +63,6 @@ impl From<Label> for ariadne::Label<Position> {
         };
         ariadne::Label::new(value.pos)
             .with_color(color)
-            .with_message(value.msg)
+            .with_message((*value.msg)())
     }
 }

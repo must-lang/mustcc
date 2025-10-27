@@ -55,14 +55,16 @@ impl ScopeInfo {
                     && !*private_guard
                 {
                     return Err(Diagnostic::error(&name.pos).with_label(
-                        Label::new(&name.pos).with_msg(format!("{} is private", name.data)),
+                        Label::new(&name.pos)
+                            .with_msg(Box::new(move || format!("{} is private", name.data))),
                     ));
                 }
                 if path.data.is_empty() {
                     if let Symbol::Ambiguous(_) = binding.sym {
-                        return Err(Diagnostic::error(&name.pos).with_label(
-                            Label::new(&name.pos).with_msg(format!("{} is ambiguous", name.data)),
-                        ));
+                        return Err(Diagnostic::error(&name.pos)
+                            .with_label(Label::new(&name.pos).with_msg(Box::new(move || {
+                                format!("{} is ambiguous", name.data)
+                            }))));
                     }
                     return Ok(binding.clone());
                 }
@@ -74,8 +76,9 @@ impl ScopeInfo {
                         | Symbol::GlobImported(node_id) => node_id,
                         Symbol::Ambiguous(_) => {
                             return Err(Diagnostic::error(&name.pos).with_label(
-                                Label::new(&name.pos)
-                                    .with_msg(format!("{} is ambiguous", name.data)),
+                                Label::new(&name.pos).with_msg(Box::new(move || {
+                                    format!("{} is ambiguous", name.data)
+                                })),
                             ));
                         }
                     },
@@ -88,25 +91,29 @@ impl ScopeInfo {
                         }
                         Symbol::Ambiguous(_) => {
                             return Err(Diagnostic::error(&name.pos).with_label(
-                                Label::new(&name.pos)
-                                    .with_msg(format!("{} is ambiguous", name.data)),
+                                Label::new(&name.pos).with_msg(Box::new(move || {
+                                    format!("{} is ambiguous", name.data)
+                                })),
                             ));
                         }
                     },
                     Kind::Func => {
-                        return Err(Diagnostic::error(&name.pos).with_label(
-                            Label::new(&name.pos).with_msg(format!("{} is a function", name.data)),
-                        ));
+                        return Err(Diagnostic::error(&name.pos)
+                            .with_label(Label::new(&name.pos).with_msg(Box::new(move || {
+                                format!("{} is a function", name.data)
+                            }))));
                     }
                     Kind::Struct => {
-                        return Err(Diagnostic::error(&name.pos).with_label(
-                            Label::new(&name.pos).with_msg(format!("{} is a struct", name.data)),
-                        ));
+                        return Err(Diagnostic::error(&name.pos)
+                            .with_label(Label::new(&name.pos).with_msg(Box::new(move || {
+                                format!("{} is a struct", name.data)
+                            }))));
                     }
                     Kind::Cons => {
                         return Err(Diagnostic::error(&name.pos).with_label(
-                            Label::new(&name.pos)
-                                .with_msg(format!("{} is an enum constructor", name.data)),
+                            Label::new(&name.pos).with_msg(Box::new(move || {
+                                format!("{} is an enum constructor", name.data)
+                            })),
                         ));
                     }
                 };
@@ -137,9 +144,10 @@ impl ScopeInfo {
                         }
                     }
                 } else {
-                    Err(Diagnostic::error(&name.pos).with_label(
-                        Label::new(&name.pos).with_msg(format!("Unbound variable: {}", name.data)),
-                    ))
+                    Err(Diagnostic::error(&name.pos)
+                        .with_label(Label::new(&name.pos).with_msg(Box::new(move || {
+                            format!("Unbound variable: {}", name.data)
+                        }))))
                 }
             }
         }

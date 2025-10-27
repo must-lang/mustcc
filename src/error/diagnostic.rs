@@ -14,7 +14,6 @@ pub enum Severity {
 /// Represents compiler diagnostic.
 ///
 /// Diagnostic is an error in user's code.
-#[derive(Debug)]
 pub struct Diagnostic {
     pub severity: Severity,
     pub labels: Vec<Label>,
@@ -44,10 +43,9 @@ impl Diagnostic {
 }
 
 /// Label included with a diagnostic.
-#[derive(Debug)]
 pub struct Label {
     pub pos: Position,
-    pub msg: String,
+    pub msg: Box<dyn Fn() -> String>,
     pub color: Color,
 }
 
@@ -55,12 +53,12 @@ impl Label {
     pub fn new(pos: &Position) -> Self {
         Label {
             pos: pos.clone(),
-            msg: "<no message for this error>".into(),
+            msg: Box::new(|| "<no message for this error>".into()),
             color: colored::Color::Red,
         }
     }
 
-    pub fn with_msg(mut self, msg: String) -> Self {
+    pub fn with_msg(mut self, msg: Box<dyn Fn() -> String>) -> Self {
         self.msg = msg;
         self
     }

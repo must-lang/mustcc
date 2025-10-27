@@ -78,8 +78,8 @@ impl Type {
 
     pub(crate) fn named_var(tvar: TVar, name: &str, pos: &Position) -> Result<Type, Diagnostic> {
         if let TVarKind::TypeCons(n) = tvar.kind() {
-            let diag = Diagnostic::error(pos)
-                .with_label(Label::new(pos).with_msg(format!("missing {} type parameters", n)));
+            let msg = Box::new(move || format!("missing {} type parameters", n));
+            let diag = Diagnostic::error(pos).with_label(Label::new(pos).with_msg(msg));
             return Err(diag);
         }
         Ok(Type(TypeView::NamedVar(tvar, name.to_string())))
@@ -115,7 +115,7 @@ impl Type {
 
     pub(crate) fn builtin(name: &str) -> Type {
         let tv = TVar::of_builtin(name);
-        Type::named_var(tv, name, &Position::nowhere()).unwrap()
+        unsafe { Type::named_var(tv, name, &Position::nowhere()).unwrap_unchecked() }
     }
 
     pub(crate) fn type_app(
@@ -126,18 +126,18 @@ impl Type {
     ) -> Result<Type, Diagnostic> {
         if let TVarKind::TypeCons(n) = tvar.kind() {
             if tps.len() != n.into() {
-                let diag = Diagnostic::error(pos).with_label(Label::new(pos).with_msg(format!(
-                    "expected {} type parameters, but got {}",
-                    n,
-                    tps.len()
-                )));
+                let msg = Box::new(move || {
+                    format!("expected {} type parameters, but got {}", n, tps.len())
+                });
+                let diag = Diagnostic::error(pos).with_label(Label::new(pos).with_msg(msg));
                 return Err(diag);
             }
             Ok(Type(TypeView::TypeApp(tvar, name.to_string(), tps)))
         } else {
-            let diag = Diagnostic::error(pos).with_label(
-                Label::new(pos).with_msg(format!("this type doesn't take type parameters")),
-            );
+            let diag =
+                Diagnostic::error(pos).with_label(Label::new(pos).with_msg(Box::new(|| {
+                    format!("this type doesn't take type parameters")
+                })));
             return Err(diag);
         }
     }
@@ -172,7 +172,7 @@ impl Type {
             }
             TypeView::TypeApp(tvar, name, items) => {
                 let tps = items.iter().map(|tp| tp.substitute(subst)).collect();
-                Type::type_app(tvar, &name, tps, &Position::nowhere()).unwrap()
+                unsafe { Type::type_app(tvar, &name, tps, &Position::nowhere()).unwrap_unchecked() }
             }
         }
     }

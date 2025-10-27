@@ -43,8 +43,8 @@ impl UVar {
         match borrow {
             UVarData::Unresolved(_) | UVarData::Resolved(_) => self.clone(),
             UVarData::Link(uvar) => {
-                let root = uvar.clone().find();
-                *borrow = UVarData::Link(root.clone());
+                let root = uvar.find();
+                //*borrow = UVarData::Link(root.clone());
                 root
             }
         }
@@ -75,6 +75,7 @@ impl UVar {
     pub(crate) fn try_resolved(&self) -> Option<Type> {
         match &*self.0.borrow() {
             UVarData::Resolved(tp) => Some(tp.clone()),
+            UVarData::Link(uvar) => uvar.try_resolved(),
             _ => None,
         }
     }

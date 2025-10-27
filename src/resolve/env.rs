@@ -58,12 +58,11 @@ impl Env {
                         };
                         match binding {
                             LocalBinding::Var => {
-                                ctx.report(
-                                    Diagnostic::error(&ret_type.pos).with_label(
-                                        Label::new(&ret_type.pos)
-                                            .with_msg(format!("expected type, found variable")),
-                                    ),
-                                );
+                                ctx.report(Diagnostic::error(&ret_type.pos).with_label(
+                                    Label::new(&ret_type.pos).with_msg(Box::new(|| {
+                                        format!("expected type, found variable")
+                                    })),
+                                ));
                                 return Ok(Type::unknown());
                             }
                             LocalBinding::TypeVar(tvar) => *tvar,
@@ -129,12 +128,11 @@ impl Env {
                         };
                         match binding {
                             LocalBinding::Var => {
-                                ctx.report(
-                                    Diagnostic::error(&ret_type.pos).with_label(
-                                        Label::new(&ret_type.pos)
-                                            .with_msg(format!("expected type, found variable")),
-                                    ),
-                                );
+                                ctx.report(Diagnostic::error(&ret_type.pos).with_label(
+                                    Label::new(&ret_type.pos).with_msg(Box::new(|| {
+                                        format!("expected type, found variable")
+                                    })),
+                                ));
                                 return Ok(Type::unknown());
                             }
                             LocalBinding::TypeVar(tvar) => *tvar,

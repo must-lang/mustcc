@@ -78,7 +78,8 @@ impl Env {
         match mod_info.items.get_mut(&name_s) {
             Some(bind) => {
                 let diag = Diagnostic::error(&name.pos).with_label(
-                    Label::new(&name.pos).with_msg(format!("{} is already bound", name_s)),
+                    Label::new(&name.pos)
+                        .with_msg(Box::new(move || format!("{} is already bound", name_s))),
                 );
                 return Err(diag);
             }

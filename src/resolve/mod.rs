@@ -132,10 +132,9 @@ fn tr_enum(
                 let name = name.name_str();
                 if let Some(_) = constructors.insert(name.clone(), id) {
                     ctx.report(
-                        Diagnostic::error(&pos).with_label(
-                            Label::new(&pos)
-                                .with_msg(format!("constructor with this name already defined")),
-                        ),
+                        Diagnostic::error(&pos).with_label(Label::new(&pos).with_msg(Box::new(
+                            || format!("constructor with this name already defined"),
+                        ))),
                     );
                 };
                 let sym_info = SymInfo::build(
@@ -311,13 +310,13 @@ fn tr_func(
                 let name = "self".to_string();
                 env.add_local_var(name.clone());
                 let tp = match &parent {
-                    Some(p) => {
+                    Some(p) => unsafe {
                         if params.len() == 0 {
-                            Type::named_var(p.0, &p.1, &pos).unwrap()
+                            Type::named_var(p.0, &p.1, &pos).unwrap_unchecked()
                         } else {
                             todo!()
                         }
-                    }
+                    },
                     None => {
                         ctx.report(Diagnostic::error(&pos));
                         return Ok(None);
@@ -335,13 +334,13 @@ fn tr_func(
                 let name = "self".to_string();
                 env.add_local_var(name.clone());
                 let tp = match &parent {
-                    Some(p) => {
+                    Some(p) => unsafe {
                         if params.len() == 0 {
-                            Type::named_var(p.0, &p.1, &pos).unwrap()
+                            Type::named_var(p.0, &p.1, &pos).unwrap_unchecked()
                         } else {
                             todo!()
                         }
-                    }
+                    },
                     None => {
                         ctx.report(Diagnostic::error(&pos));
                         return Ok(None);
@@ -360,13 +359,13 @@ fn tr_func(
                 let name = "self".to_string();
                 env.add_local_var(name.clone());
                 let tp = match &parent {
-                    Some(p) => {
+                    Some(p) => unsafe {
                         if params.len() == 0 {
-                            Type::named_var(p.0, &p.1, &pos).unwrap()
+                            Type::named_var(p.0, &p.1, &pos).unwrap_unchecked()
                         } else {
                             todo!()
                         }
-                    }
+                    },
                     None => {
                         ctx.report(Diagnostic::error(&pos));
                         return Ok(None);
@@ -525,10 +524,9 @@ fn tr_expr(
                 let name = ident.name_str();
                 if let Some(_) = tr_items.insert(name.clone(), tr_expr(ctx, env, expr)?) {
                     ctx.report(
-                        Diagnostic::error(&pos).with_label(
-                            Label::new(&pos)
-                                .with_msg(format!("field `{}` initialized more than once", name)),
-                        ),
+                        Diagnostic::error(&pos).with_label(Label::new(&pos).with_msg(Box::new(
+                            move || format!("field `{}` initialized more than once", name),
+                        ))),
                     );
                 }
             }
