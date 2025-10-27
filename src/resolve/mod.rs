@@ -1,8 +1,7 @@
 pub mod ast;
 mod env;
 
-use std::collections::HashMap;
-use std::hash::Hash;
+use std::collections::{HashMap, HashSet};
 
 use crate::common::{Ident, NodeID};
 use crate::error::InternalError;
@@ -98,7 +97,7 @@ fn tr_enum(
     e: in_a::Enum,
 ) -> Result<(), InternalError> {
     let tvar = env.get_tvar(e.id)?;
-    let mut constructors = vec![];
+    let mut constructors = HashMap::new();
     let mut params = HashMap::new();
     env.new_scope();
     for param in e.type_params {
@@ -108,6 +107,7 @@ fn tr_enum(
         // todo: check if duplicate
         params.insert(name, tv);
     }
+    let mut cons_id = 0;
     for cons in e.constructors {
         match cons {
             in_a::Constructor::Tuple {
@@ -121,11 +121,23 @@ fn tr_enum(
                     .into_iter()
                     .map(|param| env.resolve_type(ctx, param))
                     .collect::<Result<_, _>>()?;
-                constructors.push(id);
+                let name = name.name_str();
+                if let Some(_) = constructors.insert(name.clone(), id) {
+                    ctx.report(
+                        Diagnostic::error(&pos).with_label(
+                            Label::new(&pos)
+                                .with_msg(format!("constructor with this name already defined")),
+                        ),
+                    );
+                };
                 let sym_info = SymInfo::build(
-                    name.name_str(),
+                    name.clone(),
                     pos,
-                    SymKind::EnumCons { args, parent: e.id },
+                    SymKind::EnumCons {
+                        id: cons_id,
+                        args,
+                        parent: e.id,
+                    },
                 )
                 .with_attributes(attributes);
                 env.add_sym_info(id, sym_info);
@@ -139,6 +151,7 @@ fn tr_enum(
                 fields: params,
             } => todo!(),
         };
+        cons_id += 1;
     }
     let methods = e
         .methods
@@ -246,13 +259,13 @@ fn tr_func(
     parent: Option<(TVar, String)>,
 ) -> Result<Option<ast::Func>, InternalError> {
     env.new_scope();
-    let mut params = vec![];
+    let mut params = HashSet::new();
     let mut named_params = vec![];
     for param in func.type_params {
         let tv = TVar::new();
         let name = param.data;
         env.add_local_type_var(name.clone(), tv);
-        params.push(tv);
+        params.insert(tv);
         named_params.push((name.clone(), tv));
         let type_info = TypeInfo {
             name,

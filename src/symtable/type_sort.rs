@@ -104,10 +104,10 @@ fn get_tvars(info: &TypeInfo, node_map: &HashMap<NodeID, SymInfo>) -> HashSet<TV
             params,
             constructors,
         } => {
-            for cons in constructors {
+            for (_, cons) in constructors {
                 match node_map.get(&cons) {
                     Some(info) => match &info.kind {
-                        SymKind::EnumCons { args, parent } => {
+                        SymKind::EnumCons { id, args, parent } => {
                             for arg in args {
                                 set.extend(get_tvars_of_type(&arg))
                             }

@@ -90,13 +90,14 @@ impl SymInfo {
 #[derive(Debug)]
 pub enum SymKind {
     Func {
-        params: Vec<TVar>,
+        params: HashSet<TVar>,
         args: Vec<Type>,
         ret: Type,
     },
     Struct(TVar),
     Enum(TVar),
     EnumCons {
+        id: usize,
         args: Vec<Type>,
         parent: NodeID,
     },
@@ -117,11 +118,11 @@ pub enum TypeKind {
         size: usize,
     },
     Struct {
-        params: Vec<TVar>,
+        params: HashSet<TVar>,
         fields: HashMap<String, Type>,
     },
     Enum {
-        params: Vec<TVar>,
-        constructors: Vec<NodeID>,
+        params: HashSet<TVar>,
+        constructors: HashMap<String, NodeID>,
     },
 }

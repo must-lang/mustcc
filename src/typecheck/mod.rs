@@ -98,7 +98,7 @@ fn check_expr(
                             tp: tp.clone(),
                         }
                     }
-                    SymKind::EnumCons { args, parent } => {
+                    SymKind::EnumCons { id, args, parent } => {
                         let sym = sym_table.find_sym_info(*parent);
                         let tp = match sym.kind {
                             SymKind::Enum(tv) => {
@@ -434,15 +434,15 @@ fn check_expr(
         }
         in_a::ExprData::StructCons(id, mut items) => {
             let sym_info = sym_table.find_sym_info(id);
-            let (tvar, name, fields) = match &sym_info.kind {
+            let (params, tvar, name, fields) = match &sym_info.kind {
                 SymKind::Func { params, args, ret } => todo!(),
                 SymKind::Enum(tvar) => todo!(),
-                SymKind::EnumCons { args, parent } => todo!(),
+                SymKind::EnumCons { id, args, parent } => todo!(),
                 SymKind::Struct(tvar) => {
                     let type_info = sym_table.find_type_info(*tvar);
                     match &type_info.kind {
                         TypeKind::Struct { params, fields } => {
-                            (tvar, type_info.name.clone(), fields)
+                            (params, tvar, type_info.name.clone(), fields)
                         }
                         _ => unreachable!("this is 100% a struct"),
                     }
