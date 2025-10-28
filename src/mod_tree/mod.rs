@@ -1,5 +1,6 @@
 pub mod ast;
 mod env;
+mod error;
 mod import_solve;
 pub mod scope;
 pub mod scope_info;
@@ -11,7 +12,7 @@ pub use scope_info::ScopeInfo;
 use crate::common::{NodeID, Path, Visibility};
 use crate::error::InternalError;
 use crate::error::context::Context;
-use crate::error::diagnostic::{Diagnostic, Label};
+use crate::error::diagnostic::Diagnostic;
 
 use crate::mod_tree::env::Env;
 use crate::mod_tree::scope::{Binding, Import, Scope, ScopeKind};
@@ -86,11 +87,7 @@ fn tr_module(
                 let module = match env.remove_module(&path) {
                     Some(m) => m,
                     None => {
-                        ctx.report(Diagnostic::error(&m.pos).with_label(
-                            Label::new(&m.pos).with_msg(Box::new(move || {
-                                format!("missing module: {}", m.name.name_str())
-                            })),
-                        ));
+                        ctx.report(error::missing_module(&m.pos, m.name.name_str()));
                         continue;
                     }
                 };

@@ -1,6 +1,5 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
-use crate::common::Position;
 use crate::error::context::Context;
 
 mod ast;
@@ -8,9 +7,8 @@ mod env;
 mod error;
 
 use crate::error::InternalError;
-use crate::error::diagnostic::Diagnostic;
 use crate::resolve::ast as in_a;
-use crate::symtable::{SymKind, SymTable, TypeInfo, TypeKind};
+use crate::symtable::{SymKind, SymTable, TypeKind};
 use crate::tp::{TVar, Type, TypeView, unify};
 use crate::typecheck::env::Env;
 use ast as out_a;
@@ -229,7 +227,7 @@ fn check_expr(
         in_a::ExprData::Return(expr) => {
             let tp = env.expected_ret();
             let expr = check_expr(ctx, sym_table, env, *expr, &tp, false)?;
-            if !unify(exp_tp, &Type::never()) {
+            if !unify(exp_tp, &Type::builtin("never")) {
                 unreachable!("never always coerces")
             };
             out_a::Expr::Return {
@@ -277,7 +275,7 @@ fn check_expr(
         }
         in_a::ExprData::If(pr, th, el) => {
             let tp = env.fresh_uvar(&pos);
-            let pr = check_expr(ctx, sym_table, env, *pr, &Type::bool(), false)?;
+            let pr = check_expr(ctx, sym_table, env, *pr, &Type::builtin("bool"), false)?;
             let el = check_expr(ctx, sym_table, env, *el, &tp, exp_mut)?;
             let th = check_expr(ctx, sym_table, env, *th, &tp, exp_mut)?;
             if !unify(exp_tp, &tp) {
@@ -556,16 +554,14 @@ fn check_expr(
             }
         }
         in_a::ExprData::Match(expr_node, match_clauses) => {
-            ctx.report(
-                Diagnostic::error(&pos).with_note("Pattern matching not yet supported".into()),
-            );
+            ctx.report(error::not_yet_supported(&pos));
             out_a::Expr::Error
         }
         in_a::ExprData::While(pred, block) => {
             if exp_mut {
                 ctx.report(error::expected_mutable(pos.clone()));
             }
-            let pred = check_expr(ctx, sym_table, env, *pred, &Type::bool(), false)?;
+            let pred = check_expr(ctx, sym_table, env, *pred, &Type::builtin("bool"), false)?;
             let block = check_expr(ctx, sym_table, env, *block, &Type::unit(), false)?;
             if !unify(exp_tp, &Type::unit()) {
                 ctx.report(error::type_mismatch(pos, exp_tp.clone(), Type::unit()));
@@ -575,7 +571,14 @@ fn check_expr(
                 block: Box::new(block),
             }
         }
-        in_a::ExprData::Cast(expr_node, _) => todo!(),
+        in_a::ExprData::Cast(expr, to_type) => {
+            let tp = env.fresh_uvar(&pos);
+            let expr = check_expr(ctx, sym_table, env, *expr, &tp, exp_mut)?;
+            if !unify(exp_tp, &to_type) {
+                ctx.report(error::type_mismatch(pos, exp_tp.clone(), to_type));
+            }
+            expr
+        }
         in_a::ExprData::ArrayInitExact(exprs) => {
             if exp_mut {
                 ctx.report(error::expected_mutable(pos.clone()));

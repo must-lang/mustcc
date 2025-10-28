@@ -1,5 +1,6 @@
 pub mod ast;
 mod env;
+mod error;
 
 use std::collections::{HashMap, HashSet};
 use std::num::NonZeroUsize;
@@ -131,11 +132,7 @@ fn tr_enum(
                     .collect::<Result<_, _>>()?;
                 let name = name.name_str();
                 if let Some(_) = constructors.insert(name.clone(), id) {
-                    ctx.report(
-                        Diagnostic::error(&pos).with_label(Label::new(&pos).with_msg(Box::new(
-                            || format!("constructor with this name already defined"),
-                        ))),
-                    );
+                    ctx.report(error::already_bound(&pos, name.clone()));
                 };
                 let sym_info = SymInfo::build(
                     name.clone(),
@@ -318,7 +315,7 @@ fn tr_func(
                         }
                     },
                     None => {
-                        ctx.report(Diagnostic::error(&pos));
+                        ctx.report(error::self_on_free_function(&pos));
                         return Ok(None);
                     }
                 };
@@ -342,7 +339,7 @@ fn tr_func(
                         }
                     },
                     None => {
-                        ctx.report(Diagnostic::error(&pos));
+                        ctx.report(error::self_on_free_function(&pos));
                         return Ok(None);
                     }
                 };
@@ -367,7 +364,7 @@ fn tr_func(
                         }
                     },
                     None => {
-                        ctx.report(Diagnostic::error(&pos));
+                        ctx.report(error::self_on_free_function(&pos));
                         return Ok(None);
                     }
                 };
@@ -401,7 +398,7 @@ fn tr_func(
         Some(body) => tr_expr(ctx, env, body)?,
         None => {
             if !is_extern {
-                ctx.report(Diagnostic::error(&func.pos));
+                ctx.report(error::function_with_no_body(&func.pos));
             }
             env.leave_scope();
             return Ok(None);
@@ -523,11 +520,7 @@ fn tr_expr(
             for (ident, expr) in items {
                 let name = ident.name_str();
                 if let Some(_) = tr_items.insert(name.clone(), tr_expr(ctx, env, expr)?) {
-                    ctx.report(
-                        Diagnostic::error(&pos).with_label(Label::new(&pos).with_msg(Box::new(
-                            move || format!("field `{}` initialized more than once", name),
-                        ))),
-                    );
+                    ctx.report(error::field_duplicate(&pos, name));
                 }
             }
             out_a::ExprData::StructCons(id, tr_items)
@@ -659,7 +652,7 @@ fn tr_pattern(
         in_a::PatternData::TupleCons(path, pattern_nodes) => match env.find_symbol(path) {
             Ok(sym) => match sym {
                 ast::SymRef::Local(_) => {
-                    ctx.report(Diagnostic::error(&pos));
+                    ctx.report(error::local_type(&pos));
                     out_a::PatternData::Error
                 }
                 ast::SymRef::Global(id) => {

@@ -68,3 +68,8 @@ pub(crate) fn cannot_infer_type(pos: &Position) -> Diagnostic {
         format!("cannot infer type, please annotate")
     })))
 }
+
+pub(crate) fn not_yet_supported(pos: &Position) -> Diagnostic {
+    Diagnostic::error(&pos)
+        .with_label(Label::new(&pos).with_msg(Box::new(move || format!("not yet supported"))))
+}

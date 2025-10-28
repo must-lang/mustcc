@@ -2,12 +2,11 @@ use std::collections::BTreeMap;
 
 use crate::{
     common::{Ident, NodeID},
-    error::{
-        InternalError,
-        context::Context,
-        diagnostic::{Diagnostic, Label},
+    error::{InternalError, context::Context, diagnostic::Diagnostic},
+    mod_tree::{
+        error,
+        scope::{Binding, Import, Scope, ScopeKind},
     },
-    mod_tree::scope::{Binding, Import, Kind, Scope, ScopeKind},
 };
 
 use super::ScopeInfo;
@@ -76,13 +75,7 @@ impl Env {
         assert_ne!(name_s, "Self");
         let mod_info = self.scope_info.get_mut(self.current_namespace_id).unwrap();
         match mod_info.items.get_mut(&name_s) {
-            Some(bind) => {
-                let diag = Diagnostic::error(&name.pos).with_label(
-                    Label::new(&name.pos)
-                        .with_msg(Box::new(move || format!("{} is already bound", name_s))),
-                );
-                return Err(diag);
-            }
+            Some(bind) => return Err(error::already_bound(&name.pos, name_s)),
             None => {
                 mod_info.items.insert(name_s, binding);
             }

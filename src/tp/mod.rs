@@ -1,3 +1,4 @@
+mod error;
 mod tvar;
 mod uvar;
 
@@ -78,9 +79,7 @@ impl Type {
 
     pub(crate) fn named_var(tvar: TVar, name: &str, pos: &Position) -> Result<Type, Diagnostic> {
         if let TVarKind::TypeCons(n) = tvar.kind() {
-            let msg = Box::new(move || format!("missing {} type parameters", n));
-            let diag = Diagnostic::error(pos).with_label(Label::new(pos).with_msg(msg));
-            return Err(diag);
+            return Err(error::type_params_mismatch(pos, n.into(), 0));
         }
         Ok(Type(TypeView::NamedVar(tvar, name.to_string())))
     }
@@ -95,14 +94,6 @@ impl Type {
 
     pub fn fresh_uvar() -> Type {
         Type(TypeView::UVar(UVar::new()))
-    }
-
-    pub(crate) fn never() -> Type {
-        todo!()
-    }
-
-    pub(crate) fn bool() -> Type {
-        todo!()
     }
 
     pub fn numeric_uvar() -> Type {
@@ -126,19 +117,11 @@ impl Type {
     ) -> Result<Type, Diagnostic> {
         if let TVarKind::TypeCons(n) = tvar.kind() {
             if tps.len() != n.into() {
-                let msg = Box::new(move || {
-                    format!("expected {} type parameters, but got {}", n, tps.len())
-                });
-                let diag = Diagnostic::error(pos).with_label(Label::new(pos).with_msg(msg));
-                return Err(diag);
+                return Err(error::type_params_mismatch(pos, n.into(), tps.len()));
             }
             Ok(Type(TypeView::TypeApp(tvar, name.to_string(), tps)))
         } else {
-            let diag =
-                Diagnostic::error(pos).with_label(Label::new(pos).with_msg(Box::new(|| {
-                    format!("this type doesn't take type parameters")
-                })));
-            return Err(diag);
+            return Err(error::type_params_mismatch(pos, 0, tps.len()));
         }
     }
 

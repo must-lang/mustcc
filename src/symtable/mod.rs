@@ -72,6 +72,7 @@ impl SymInfo {
                     std::cmp::Ordering::Equal => unsafe {
                         let name = attr.args.pop().unwrap_unchecked();
                         self.builtin_name = Some(name);
+                        self.is_extern = true;
                     },
                     std::cmp::Ordering::Less => {
                         panic!("expected one argument for attribute `builtin`")

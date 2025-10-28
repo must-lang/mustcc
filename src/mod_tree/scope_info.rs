@@ -3,8 +3,11 @@ use std::collections::HashMap;
 use super::scope::Scope;
 use crate::{
     common::{NodeID, Path, Visibility},
-    error::diagnostic::{Diagnostic, Label},
-    mod_tree::scope::{Binding, Kind, Symbol},
+    error::diagnostic::Diagnostic,
+    mod_tree::{
+        error,
+        scope::{Binding, Kind, Symbol},
+    },
 };
 
 #[derive(Debug, Clone)]
@@ -54,17 +57,11 @@ impl ScopeInfo {
                 if let Visibility::Private = binding.vis
                     && !*private_guard
                 {
-                    return Err(Diagnostic::error(&name.pos).with_label(
-                        Label::new(&name.pos)
-                            .with_msg(Box::new(move || format!("{} is private", name.data))),
-                    ));
+                    return Err(error::private_item(&name.pos, name.data));
                 }
                 if path.data.is_empty() {
                     if let Symbol::Ambiguous(_) = binding.sym {
-                        return Err(Diagnostic::error(&name.pos)
-                            .with_label(Label::new(&name.pos).with_msg(Box::new(move || {
-                                format!("{} is ambiguous", name.data)
-                            }))));
+                        return Err(error::ambiguous_symbol(&name.pos, name.data));
                     }
                     return Ok(binding.clone());
                 }
@@ -75,14 +72,10 @@ impl ScopeInfo {
                         | Symbol::Imported(node_id)
                         | Symbol::GlobImported(node_id) => node_id,
                         Symbol::Ambiguous(_) => {
-                            return Err(Diagnostic::error(&name.pos).with_label(
-                                Label::new(&name.pos).with_msg(Box::new(move || {
-                                    format!("{} is ambiguous", name.data)
-                                })),
-                            ));
+                            return Err(error::ambiguous_symbol(&name.pos, name.data));
                         }
                     },
-                    Kind::Enum => match &binding.sym {
+                    Kind::Struct | Kind::Enum => match &binding.sym {
                         Symbol::Local(node_id)
                         | Symbol::Imported(node_id)
                         | Symbol::GlobImported(node_id) => {
@@ -90,31 +83,17 @@ impl ScopeInfo {
                             node_id
                         }
                         Symbol::Ambiguous(_) => {
-                            return Err(Diagnostic::error(&name.pos).with_label(
-                                Label::new(&name.pos).with_msg(Box::new(move || {
-                                    format!("{} is ambiguous", name.data)
-                                })),
-                            ));
+                            return Err(error::ambiguous_symbol(&name.pos, name.data));
                         }
                     },
                     Kind::Func => {
-                        return Err(Diagnostic::error(&name.pos)
-                            .with_label(Label::new(&name.pos).with_msg(Box::new(move || {
-                                format!("{} is a function", name.data)
-                            }))));
+                        return Err(error::cannot_import_from(&name.pos, name.data.clone())
+                            .with_note(format!("{} is a function", name.data)));
                     }
-                    Kind::Struct => {
-                        return Err(Diagnostic::error(&name.pos)
-                            .with_label(Label::new(&name.pos).with_msg(Box::new(move || {
-                                format!("{} is a struct", name.data)
-                            }))));
-                    }
+
                     Kind::Cons => {
-                        return Err(Diagnostic::error(&name.pos).with_label(
-                            Label::new(&name.pos).with_msg(Box::new(move || {
-                                format!("{} is an enum constructor", name.data)
-                            })),
-                        ));
+                        return Err(error::cannot_import_from(&name.pos, name.data.clone())
+                            .with_note(format!("{} is an enum constructor", name.data)));
                     }
                 };
                 self.find_path(*id, path, &mut private_guard)
@@ -144,10 +123,7 @@ impl ScopeInfo {
                         }
                     }
                 } else {
-                    Err(Diagnostic::error(&name.pos)
-                        .with_label(Label::new(&name.pos).with_msg(Box::new(move || {
-                            format!("Unbound variable: {}", name.data)
-                        }))))
+                    Err(error::unbound_variable(&name.pos, name.data))
                 }
             }
         }

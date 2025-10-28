@@ -2,13 +2,9 @@ use std::collections::{BTreeMap, HashSet};
 
 use crate::{
     common::{NodeID, Visibility},
-    error::{
-        InternalError,
-        context::Context,
-        diagnostic::{Diagnostic, Label},
-    },
+    error::{InternalError, context::Context},
     mod_tree::{
-        ScopeInfo,
+        ScopeInfo, error,
         scope::{Binding, Import, ScopeKind, Symbol},
     },
 };
@@ -67,14 +63,10 @@ fn report_import_errors(ctx: &mut Context, old_tree: &ScopeInfo, id: &NodeID, im
                     Some(name) => name.clone(),
                     None => import.path.try_last().unwrap().clone(),
                 };
-                ctx.report(Diagnostic::error(&name.pos).with_label(
-                    Label::new(&name.pos).with_msg(Box::new(move || {
-                        format!(
-                            "cannot glob import from {}, it is not a namespace",
-                            name.data
-                        )
-                    })),
-                ));
+                ctx.report(
+                    error::cannot_import_from(&name.pos, name.data)
+                        .with_note(format!("it is not a namespace")),
+                );
             }
         };
     }

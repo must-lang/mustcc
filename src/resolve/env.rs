@@ -5,14 +5,10 @@ use std::{
 
 use crate::{
     common::{NodeID, Path},
-    error::{
-        InternalError,
-        context::Context,
-        diagnostic::{Diagnostic, Label},
-    },
+    error::{InternalError, context::Context, diagnostic::Diagnostic},
     mod_tree::{ScopeInfo, scope::Symbol},
     parser::ast::{RTypeData, RTypeNode},
-    resolve::ast::SymRef,
+    resolve::{ast::SymRef, error},
     symtable::{SymInfo, SymTable, TypeInfo},
     tp::{TVar, TVarKind, Type},
 };
@@ -39,9 +35,9 @@ impl Env {
     pub(crate) fn resolve_type(
         &self,
         ctx: &mut Context,
-        ret_type: RTypeNode,
+        tp: RTypeNode,
     ) -> Result<Type, InternalError> {
-        Ok(match ret_type.data {
+        Ok(match tp.data {
             RTypeData::Var(path) => {
                 let sym_ref = match self.find_symbol(path.clone()) {
                     Ok(sym) => sym,
@@ -58,11 +54,7 @@ impl Env {
                         };
                         match binding {
                             LocalBinding::Var => {
-                                ctx.report(Diagnostic::error(&ret_type.pos).with_label(
-                                    Label::new(&ret_type.pos).with_msg(Box::new(|| {
-                                        format!("expected type, found variable")
-                                    })),
-                                ));
+                                ctx.report(error::expected_type_got_var(&tp.pos));
                                 return Ok(Type::unknown());
                             }
                             LocalBinding::TypeVar(tvar) => *tvar,
@@ -128,11 +120,7 @@ impl Env {
                         };
                         match binding {
                             LocalBinding::Var => {
-                                ctx.report(Diagnostic::error(&ret_type.pos).with_label(
-                                    Label::new(&ret_type.pos).with_msg(Box::new(|| {
-                                        format!("expected type, found variable")
-                                    })),
-                                ));
+                                ctx.report(error::expected_type_got_var(&tp.pos));
                                 return Ok(Type::unknown());
                             }
                             LocalBinding::TypeVar(tvar) => *tvar,
