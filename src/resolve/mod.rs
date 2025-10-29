@@ -271,13 +271,6 @@ fn tr_func(
         env.add_local_type_var(name.clone(), tv);
         params.insert(tv);
         named_params.push((name.clone(), tv));
-        let type_info = TypeInfo {
-            name,
-            pos: param.pos,
-            methods: HashMap::new(),
-            kind: TypeKind::LocalVar,
-        };
-        env.add_type_info(tv, type_info);
     }
     let ret_type = match func.ret_type {
         Some(tp) => env.resolve_type(ctx, tp)?,

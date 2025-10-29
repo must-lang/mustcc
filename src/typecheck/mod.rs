@@ -357,6 +357,10 @@ fn check_expr(
                 tps.push(tp);
                 ch_exprs.push(expr);
             }
+            let tp = Type::tuple(tps);
+            if !unify(exp_tp, &tp) {
+                ctx.report(error::type_mismatch(pos, exp_tp.clone(), tp.clone()));
+            }
             out_a::Expr::Tuple(ch_exprs)
         }
         in_a::ExprData::String(s) => {

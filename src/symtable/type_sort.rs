@@ -20,8 +20,6 @@ pub fn calculate_size(
         } else {
             let info = tvar_map.get(tvar).unwrap();
             match &info.kind {
-                TypeKind::LocalVar => todo!(),
-                TypeKind::Primitive { size } => todo!(),
                 TypeKind::Struct { params, fields } => {
                     let mut size = 0;
                     for (_, f) in fields {

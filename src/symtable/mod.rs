@@ -24,6 +24,7 @@ impl SymTable {
         node_map: HashMap<NodeID, SymInfo>,
         tvar_map: HashMap<TVar, TypeInfo>,
     ) -> SymTable {
+        println!("{:#?}", tvar_map);
         let dep_tree: HashMap<TVar, HashSet<TVar>> = make_dep_tree(&tvar_map, &node_map);
         println!("{:#?}", dep_tree);
         let (tvar_order, cyclic) = topo_sort(dep_tree);
@@ -123,10 +124,6 @@ pub struct TypeInfo {
 
 #[derive(Debug)]
 pub enum TypeKind {
-    LocalVar,
-    Primitive {
-        size: usize,
-    },
     Struct {
         params: HashSet<TVar>,
         fields: HashMap<String, Type>,
