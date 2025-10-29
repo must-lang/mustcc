@@ -2,7 +2,10 @@ mod error;
 mod tvar;
 mod uvar;
 
-use std::{collections::HashMap, fmt::Display};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Display,
+};
 
 pub use tvar::{TVar, TVarKind};
 use uvar::UVar;
@@ -157,6 +160,36 @@ impl Type {
                 let tps = items.iter().map(|tp| tp.substitute(subst)).collect();
                 unsafe { Type::type_app(tvar, &name, tps, &Position::nowhere()).unwrap_unchecked() }
             }
+        }
+    }
+
+    /// This function returns all type variables
+    /// that this type's size depends on.
+    pub fn get_size_dependencies(&self) -> HashSet<TVar> {
+        match &self.view() {
+            TypeView::Unknown => HashSet::new(),
+            TypeView::UVar(uvar) | TypeView::NumericUVar(uvar) => panic!(),
+            TypeView::TypeApp(tvar, _, _) | TypeView::Var(tvar) | TypeView::NamedVar(tvar, _) => {
+                match tvar.kind() {
+                    // don't return parameters, they will get the unsized treatment
+                    TVarKind::Parameter => return HashSet::new(),
+                    TVarKind::Type => (),
+                    TVarKind::TypeCons(non_zero) => (),
+                }
+                let mut set = HashSet::new();
+                set.insert(*tvar);
+                set
+            }
+            TypeView::Tuple(items) => {
+                let mut set = HashSet::new();
+                for tp in items {
+                    set.extend(tp.get_size_dependencies());
+                }
+                set
+            }
+            TypeView::Array(_, tp) => tp.get_size_dependencies(),
+            // pointer types break the dependency
+            TypeView::Fun(_, _) | TypeView::Ptr(_) | TypeView::MutPtr(_) => HashSet::new(),
         }
     }
 }

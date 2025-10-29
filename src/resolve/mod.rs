@@ -21,7 +21,7 @@ pub fn translate(ctx: &mut Context, prog: in_a::Program) -> Result<out_a::Progra
     generate_tvars(&mut tvar_map, &prog.ast);
     let mut env = Env::init(prog.scope_info, tvar_map);
     let functions = tr_module(ctx, &mut env, prog.ast)?;
-    let sym_table = env.finish();
+    let sym_table = env.finish(ctx);
     let prog = out_a::Program {
         functions,
         sym_table,

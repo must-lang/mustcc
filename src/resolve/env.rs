@@ -203,8 +203,8 @@ impl Env {
             .insert(name, LocalBinding::TypeVar(tv));
     }
 
-    pub fn finish(self) -> SymTable {
-        SymTable::init(self.node_map, self.tvar_map)
+    pub fn finish(self, ctx: &mut Context) -> SymTable {
+        SymTable::init(ctx, self.node_map, self.tvar_map)
     }
 
     pub(crate) fn add_sym_info(&mut self, id: NodeID, sym_info: SymInfo) {

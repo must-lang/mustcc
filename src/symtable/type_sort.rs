@@ -1,26 +1,71 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 
 use crate::{
-    common::NodeID,
-    symtable::{SymInfo, SymKind, TypeInfo, TypeKind},
-    tp::{TVar, Type},
+    common::{NodeID, Position},
+    error::context::Context,
+    symtable::{SymInfo, SymKind, TypeInfo, TypeKind, error},
+    tp::{TVar, Type, TypeView},
 };
 
 pub fn calculate_size(
+    ctx: &mut Context,
     tvar_map: &HashMap<TVar, TypeInfo>,
     node_map: &HashMap<NodeID, SymInfo>,
-    tvar_order: &[TVar],
+    tvar_order: &Vec<TVar>,
 ) -> HashMap<TVar, usize> {
     let mut tvar_size = HashMap::new();
     for tvar in tvar_order {
-        // if tvar.is_builtin() {
-        //     let size = tvar.builtin_size().unwrap();
-        //     tvar_size.insert(*tvar, size);
-        // } else {
-        //     // calculate_type_size()
-        // }
+        let size = if tvar.is_builtin() {
+            tvar.builtin_size().unwrap()
+        } else {
+            let info = tvar_map.get(tvar).unwrap();
+            match &info.kind {
+                TypeKind::LocalVar => todo!(),
+                TypeKind::Primitive { size } => todo!(),
+                TypeKind::Struct { params, fields } => {
+                    let mut size = 0;
+                    for (_, f) in fields {
+                        size += calculate_type_size(ctx, &info.pos, &tvar_size, f);
+                    }
+                    size
+                }
+                TypeKind::Enum {
+                    params,
+                    constructors,
+                } => todo!(),
+            }
+        };
+        tvar_size.insert(*tvar, size);
     }
     tvar_size
+}
+
+fn calculate_type_size(
+    ctx: &mut Context,
+    pos: &Position,
+    tvar_size: &HashMap<TVar, usize>,
+    tp: &Type,
+) -> usize {
+    match tp.view() {
+        TypeView::Unknown => 0,
+        TypeView::UVar(uvar) => todo!(),
+        TypeView::NumericUVar(uvar) => todo!(),
+        TypeView::TypeApp(tvar, _, _) | TypeView::Var(tvar) | TypeView::NamedVar(tvar, _) => {
+            match tvar_size.get(&tvar) {
+                Some(s) => *s,
+                None => {
+                    ctx.report(error::unsized_type(pos));
+                    0
+                }
+            }
+        }
+        TypeView::Tuple(items) => items
+            .iter()
+            .map(|tp| calculate_type_size(ctx, pos, tvar_size, tp))
+            .sum(),
+        TypeView::Array(size, tp) => calculate_type_size(ctx, pos, tvar_size, &tp) * size,
+        TypeView::Fun(_, _) | TypeView::Ptr(_) | TypeView::MutPtr(_) => 8,
+    }
 }
 
 pub fn reverse_graph(graph: &HashMap<TVar, HashSet<TVar>>) -> HashMap<TVar, HashSet<TVar>> {
@@ -39,7 +84,7 @@ pub fn reverse_graph(graph: &HashMap<TVar, HashSet<TVar>>) -> HashMap<TVar, Hash
     rev
 }
 
-pub fn topo_sort(dep_tree: HashMap<TVar, HashSet<TVar>>) -> Vec<TVar> {
+pub fn topo_sort(dep_tree: HashMap<TVar, HashSet<TVar>>) -> (Vec<TVar>, Vec<TVar>) {
     let n = dep_tree.len();
     let mut indeg = HashMap::<TVar, usize>::new();
 
@@ -67,15 +112,17 @@ pub fn topo_sort(dep_tree: HashMap<TVar, HashSet<TVar>>) -> Vec<TVar> {
         }
     }
 
+    order.reverse();
+
     if order.len() != n {
         let left: Vec<_> = indeg
             .into_iter()
             .filter_map(|(k, v)| if v > 0 { Some(k) } else { None })
             .collect();
-        println!("LEFT (CYCLIC) TVARS: {:#?}", left);
+        return (order, left);
     }
 
-    order
+    (order, vec![])
 }
 
 pub fn make_dep_tree(
@@ -86,7 +133,7 @@ pub fn make_dep_tree(
     for (tv, info) in tvar_map {
         let tvars = get_tvars(info, node_map);
         if let Some(_) = dep_tree.insert(*tv, tvars) {
-            panic!()
+            unreachable!("all tvars are unique")
         }
     }
     dep_tree
@@ -97,7 +144,7 @@ fn get_tvars(info: &TypeInfo, node_map: &HashMap<NodeID, SymInfo>) -> HashSet<TV
     match &info.kind {
         TypeKind::Struct { params, fields } => {
             for (_, field) in fields {
-                set.extend(get_tvars_of_type(&field))
+                set.extend(field.get_size_dependencies())
             }
         }
         TypeKind::Enum {
@@ -109,7 +156,7 @@ fn get_tvars(info: &TypeInfo, node_map: &HashMap<NodeID, SymInfo>) -> HashSet<TV
                     Some(info) => match &info.kind {
                         SymKind::EnumCons { id, args, parent } => {
                             for arg in args {
-                                set.extend(get_tvars_of_type(&arg))
+                                set.extend(arg.get_size_dependencies())
                             }
                         }
                         _ => panic!(),
@@ -121,35 +168,4 @@ fn get_tvars(info: &TypeInfo, node_map: &HashMap<NodeID, SymInfo>) -> HashSet<TV
         _ => (),
     };
     set
-}
-
-fn get_tvars_of_type(tp: &Type) -> HashSet<TVar> {
-    match &tp.view() {
-        crate::tp::TypeView::Unknown => HashSet::new(),
-        crate::tp::TypeView::UVar(uvar) | crate::tp::TypeView::NumericUVar(uvar) => panic!(),
-        crate::tp::TypeView::Var(tvar) | crate::tp::TypeView::NamedVar(tvar, _) => {
-            let mut set = HashSet::new();
-            set.insert(*tvar);
-            set
-        }
-        crate::tp::TypeView::Tuple(items) => {
-            let mut set = HashSet::new();
-            for tp in items {
-                set.extend(get_tvars_of_type(tp));
-            }
-            set
-        }
-        crate::tp::TypeView::Array(_, tp) => get_tvars_of_type(tp),
-        crate::tp::TypeView::Fun(items, ret) => {
-            let mut set = HashSet::new();
-            for tp in items {
-                set.extend(get_tvars_of_type(tp));
-            }
-            set.extend(get_tvars_of_type(&ret));
-            set
-        }
-        crate::tp::TypeView::Ptr(_) => HashSet::new(),
-        crate::tp::TypeView::MutPtr(_) => HashSet::new(),
-        crate::tp::TypeView::TypeApp(tvar, _, items) => todo!(),
-    }
 }

@@ -1,9 +1,11 @@
 use std::collections::{HashMap, HashSet};
 
+mod error;
 mod type_sort;
 
 use crate::{
     common::{NodeID, Position, RAttribute},
+    error::context::Context,
     symtable::type_sort::{calculate_size, make_dep_tree, topo_sort},
     tp::{TVar, Type},
 };
@@ -18,13 +20,20 @@ pub struct SymTable {
 
 impl SymTable {
     pub(crate) fn init(
+        ctx: &mut Context,
         node_map: HashMap<NodeID, SymInfo>,
         tvar_map: HashMap<TVar, TypeInfo>,
     ) -> SymTable {
         let dep_tree: HashMap<TVar, HashSet<TVar>> = make_dep_tree(&tvar_map, &node_map);
         println!("{:#?}", dep_tree);
-        let tvar_order = topo_sort(dep_tree);
-        let tvar_size = calculate_size(&tvar_map, &node_map, &tvar_order);
+        let (tvar_order, cyclic) = topo_sort(dep_tree);
+        println!("order: {:?}", tvar_order);
+        for tv in cyclic {
+            let info = tvar_map.get(&tv).unwrap();
+            ctx.report(error::resursive_types(&info.pos));
+        }
+        let tvar_size = calculate_size(ctx, &tvar_map, &node_map, &tvar_order);
+        println!("{:#?}", tvar_size);
         Self {
             node_map,
             tvar_map,
