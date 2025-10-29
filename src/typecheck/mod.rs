@@ -8,7 +8,7 @@ mod error;
 
 use crate::error::InternalError;
 use crate::resolve::ast as in_a;
-use crate::symtable::{SymKind, SymTable, TypeKind};
+use crate::symtable::{SymKind, SymTable, TypeKind, TypeSize};
 use crate::tp::{TVar, Type, TypeView, unify};
 use crate::typecheck::env::Env;
 use ast as out_a;
@@ -68,13 +68,13 @@ fn check_expr(
     exp_tp: &Type,
     exp_mut: bool,
 ) -> Result<out_a::Expr, InternalError> {
-    let pos = expr.pos;
+    let pos = &expr.pos;
     Ok(match expr.data {
         in_a::ExprData::Var(sym_ref) => match sym_ref {
             in_a::SymRef::Local(name) => {
                 let (is_mut, tp) = env.lookup(&name);
                 if exp_mut && !is_mut {
-                    ctx.report(error::expected_mutable(pos.clone()));
+                    ctx.report(error::expected_mutable(pos));
                 }
                 if !unify(exp_tp, tp) {
                     ctx.report(error::type_mismatch(pos, exp_tp.clone(), tp.clone()));
@@ -152,7 +152,7 @@ fn check_expr(
         },
         in_a::ExprData::FunCall(expr, expr_nodes) => {
             let fn_tp = env.fresh_uvar(&pos);
-            let expr_pos = expr.pos.clone();
+            let ref expr_pos = expr.pos.clone();
             let ch_expr = check_expr(ctx, sym_table, env, *expr, &fn_tp, false)?;
             let (args_tp, ret) = match fn_tp.view() {
                 TypeView::Fun(args, ret) => (args, ret),
@@ -171,14 +171,14 @@ fn check_expr(
                     if let Some(expr) = args_iter.next() {
                         check_expr(ctx, sym_table, env, expr, arg, false)
                     } else {
-                        ctx.report(error::missing_argument(pos.clone(), id, arg.clone()));
+                        ctx.report(error::missing_argument(pos, id, arg.clone()));
                         Ok(out_a::Expr::Error)
                     }
                 })
                 .collect::<Result<_, _>>()?;
             while let Some(arg) = args_iter.next() {
                 id += 1;
-                ctx.report(error::unexpected_argument(id, arg.pos));
+                ctx.report(error::unexpected_argument(id, &arg.pos));
             }
             if !unify(exp_tp, &ret) {
                 ctx.report(error::type_mismatch(pos, exp_tp.clone(), *ret.clone()));
@@ -336,6 +336,16 @@ fn check_expr(
             if !unify(exp_tp, &in_tp) {
                 ctx.report(error::type_mismatch(pos, exp_tp.clone(), in_tp.clone()));
             }
+            match sym_table.sizeof(&in_tp) {
+                TypeSize::Sized(_) => (),
+                TypeSize::Unsized => {
+                    ctx.report(error::unsized_type(&pos));
+                }
+                TypeSize::Unknown => (),
+                TypeSize::NotUnified => {
+                    ctx.report(error::cannot_infer_type(&pos));
+                }
+            }
             out_a::Expr::Deref {
                 expr: Box::new(expr),
                 in_tp: in_tp,
@@ -365,9 +375,9 @@ fn check_expr(
         }
         in_a::ExprData::String(s) => {
             let size = s.as_bytes().len();
-            let tp = Type::array(size, Type::builtin("u8"));
+            let tp = Type::ptr(Type::array(size, Type::builtin("u8")));
             if !unify(exp_tp, &tp) {
-                ctx.report(error::type_mismatch(pos.clone(), exp_tp.clone(), tp));
+                ctx.report(error::type_mismatch(pos, exp_tp.clone(), tp));
             }
             out_a::Expr::String(s)
         }
@@ -430,7 +440,7 @@ fn check_expr(
                 }
             };
             if !unify(first_arg, &tp) {
-                ctx.report(error::type_mismatch(pos.clone(), first_arg.clone(), tp));
+                ctx.report(error::type_mismatch(pos, first_arg.clone(), tp));
             }
             let mut args_iter = exprs.into_iter();
             let mut id = 1;
@@ -440,14 +450,14 @@ fn check_expr(
                 let arg = if let Some(expr) = args_iter.next() {
                     check_expr(ctx, sym_table, env, expr, arg, false)?
                 } else {
-                    ctx.report(error::missing_argument(pos.clone(), id, arg.clone()));
+                    ctx.report(error::missing_argument(pos, id, arg.clone()));
                     out_a::Expr::Error
                 };
                 args.push(arg)
             }
             while let Some(arg) = args_iter.next() {
                 id += 1;
-                ctx.report(error::unexpected_argument(id, arg.pos));
+                ctx.report(error::unexpected_argument(id, &arg.pos));
             }
             if !unify(exp_tp, &ret_tp) {
                 ctx.report(error::type_mismatch(pos, exp_tp.clone(), ret_tp.clone()));
@@ -494,7 +504,7 @@ fn check_expr(
                         initializers.insert(f_name.clone(), expr);
                     }
                     None => {
-                        ctx.report(error::missing_field(pos.clone(), f_name.clone(), tp));
+                        ctx.report(error::missing_field(pos, f_name.clone(), tp));
                     }
                 }
             }
@@ -502,7 +512,7 @@ fn check_expr(
                 // check anyways to report errors
                 let tp = env.fresh_uvar(&pos);
                 let _ = check_expr(ctx, sym_table, env, expr, &tp, false)?;
-                ctx.report(error::unbound_field(pos.clone(), f_name));
+                ctx.report(error::unbound_field(pos, f_name));
             }
             let tp = unsafe {
                 if params.len() == 0 {
@@ -563,7 +573,7 @@ fn check_expr(
         }
         in_a::ExprData::While(pred, block) => {
             if exp_mut {
-                ctx.report(error::expected_mutable(pos.clone()));
+                ctx.report(error::expected_mutable(pos));
             }
             let pred = check_expr(ctx, sym_table, env, *pred, &Type::builtin("bool"), false)?;
             let block = check_expr(ctx, sym_table, env, *block, &Type::unit(), false)?;
@@ -585,7 +595,7 @@ fn check_expr(
         }
         in_a::ExprData::ArrayInitExact(exprs) => {
             if exp_mut {
-                ctx.report(error::expected_mutable(pos.clone()));
+                ctx.report(error::expected_mutable(pos));
             }
             let size = exprs.len();
             let tp = env.fresh_uvar(&pos);
@@ -601,7 +611,7 @@ fn check_expr(
         }
         in_a::ExprData::ArrayInitRepeat(expr, size) => {
             if exp_mut {
-                ctx.report(error::expected_mutable(pos.clone()));
+                ctx.report(error::expected_mutable(pos));
             }
             let tp = env.fresh_uvar(&pos);
             let expr = check_expr(ctx, sym_table, env, *expr, &tp, false)?;

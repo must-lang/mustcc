@@ -7,7 +7,7 @@ use crate::{
     common::{NodeID, Position, RAttribute},
     error::context::Context,
     symtable::type_sort::{calculate_size, make_dep_tree, topo_sort},
-    tp::{TVar, Type},
+    tp::{TVar, Type, TypeView},
 };
 
 #[derive(Debug)]
@@ -35,11 +35,54 @@ impl SymTable {
         }
         let tvar_size = calculate_size(ctx, &tvar_map, &node_map, &tvar_order);
         println!("{:#?}", tvar_size);
-        Self {
+        let st = Self {
             node_map,
             tvar_map,
             tvar_order,
             tvar_size,
+        };
+        st.check_sizes(ctx);
+        st
+    }
+
+    fn check_sizes(&self, ctx: &mut Context) {
+        for (_, sym) in &self.node_map {
+            match &sym.kind {
+                SymKind::Func { params, args, ret } => {
+                    for arg in args {
+                        match self.sizeof(arg) {
+                            TypeSize::Sized(_) => (),
+                            TypeSize::Unknown => (),
+                            TypeSize::Unsized => {
+                                ctx.report(error::unsized_type(&sym.pos));
+                            }
+                            TypeSize::NotUnified => panic!(),
+                        }
+                    }
+                    match self.sizeof(ret) {
+                        TypeSize::Sized(_) => (),
+                        TypeSize::Unknown => (),
+                        TypeSize::Unsized => {
+                            ctx.report(error::unsized_type(&sym.pos));
+                        }
+                        TypeSize::NotUnified => panic!(),
+                    }
+                }
+                SymKind::Struct(tvar) => (),
+                SymKind::Enum(tvar) => (),
+                SymKind::EnumCons { id, args, parent } => {
+                    for arg in args {
+                        match self.sizeof(arg) {
+                            TypeSize::Sized(_) => (),
+                            TypeSize::Unknown => (),
+                            TypeSize::Unsized => {
+                                ctx.report(error::unsized_type(&sym.pos));
+                            }
+                            TypeSize::NotUnified => panic!(),
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -50,6 +93,64 @@ impl SymTable {
     pub(crate) fn find_type_info(&self, tvar: TVar) -> &TypeInfo {
         self.tvar_map.get(&tvar).unwrap()
     }
+
+    pub fn sizeof(&self, tp: &Type) -> TypeSize {
+        match tp.view() {
+            TypeView::Unknown => TypeSize::Unknown,
+            TypeView::UVar(uvar) | TypeView::NumericUVar(uvar) => TypeSize::NotUnified,
+            TypeView::TypeApp(tvar, _, _) | TypeView::Var(tvar) | TypeView::NamedVar(tvar, _) => {
+                match self.tvar_size.get(&tvar) {
+                    Some(n) => TypeSize::Sized(*n),
+                    None => TypeSize::Unsized,
+                }
+            }
+            TypeView::Tuple(items) => {
+                let mut size = 0;
+                for tp in items {
+                    match self.sizeof(&tp) {
+                        TypeSize::Sized(n) => size += n,
+                        TypeSize::Unsized => return TypeSize::Unsized,
+                        TypeSize::Unknown => return TypeSize::Unknown,
+                        TypeSize::NotUnified => return TypeSize::NotUnified,
+                    }
+                }
+                TypeSize::Sized(size)
+            }
+            TypeView::Array(size, tp) => match self.sizeof(&tp) {
+                TypeSize::Sized(n) => TypeSize::Sized(n * size),
+                TypeSize::Unsized => TypeSize::Unsized,
+                TypeSize::Unknown => TypeSize::Unknown,
+                TypeSize::NotUnified => TypeSize::NotUnified,
+            },
+            TypeView::Fun(items, ret) => {
+                let mut size = 0;
+                for tp in items {
+                    match self.sizeof(&tp) {
+                        TypeSize::Sized(n) => size += n,
+                        TypeSize::Unsized => return TypeSize::Unsized,
+                        TypeSize::Unknown => return TypeSize::Unknown,
+                        TypeSize::NotUnified => return TypeSize::NotUnified,
+                    }
+                }
+                match self.sizeof(&ret) {
+                    TypeSize::Sized(n) => size += n,
+                    TypeSize::Unsized => return TypeSize::Unsized,
+                    TypeSize::Unknown => return TypeSize::Unknown,
+                    TypeSize::NotUnified => return TypeSize::NotUnified,
+                }
+                TypeSize::Sized(size)
+            }
+            TypeView::Ptr(_) | TypeView::MutPtr(_) => TypeSize::Sized(8),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum TypeSize {
+    Sized(usize),
+    Unsized,
+    Unknown,
+    NotUnified,
 }
 
 #[derive(Debug)]
