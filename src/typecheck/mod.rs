@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::error::context::Context;
 
-mod ast;
+pub mod ast;
 mod env;
 mod error;
 
@@ -43,7 +43,7 @@ fn tr_func(
             env.add_var(arg.name.clone(), arg.is_mut, arg.tp.clone());
             Ok((arg.name, arg.is_mut, arg.tp))
         })
-        .collect::<Result<_, _>>()?;
+        .collect::<Result<_, InternalError>>()?;
 
     let body = check_expr(ctx, sym_table, &mut env, func.body, &func.ret_type, false)?;
 

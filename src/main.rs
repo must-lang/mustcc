@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use clap::Parser;
 
+mod codegen;
 mod common;
 mod driver;
 mod error;

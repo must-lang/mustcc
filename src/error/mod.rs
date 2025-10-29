@@ -15,6 +15,12 @@ pub enum InternalError {
     AnyMsg(String),
 }
 
+impl From<std::io::Error> for InternalError {
+    fn from(value: std::io::Error) -> Self {
+        todo!()
+    }
+}
+
 impl From<ParsingError> for Diagnostic {
     fn from(value: ParsingError) -> Self {
         match value {

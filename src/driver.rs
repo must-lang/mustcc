@@ -1,5 +1,7 @@
+use std::fs::File;
+
 use crate::{
-    Cli,
+    Cli, codegen,
     error::{InternalError, ariadne_renderer::AriadneRenderer, context::Context},
     mod_tree,
     parser::parse_project,
@@ -18,33 +20,24 @@ pub fn run(config: Cli) -> Result<(), InternalError> {
         return Ok(());
     }
 
-    let prog = match mod_tree::translate(&mut ctx, prog) {
-        Ok(prog) => prog,
-        Err(err) => {
-            ctx.finish()?;
-            return Err(err);
-        }
-    };
+    let prog = mod_tree::translate(&mut ctx, prog)?;
 
-    let prog = match resolve::translate(&mut ctx, prog) {
-        Ok(prog) => prog,
-        Err(err) => {
-            ctx.finish()?;
-            return Err(err);
-        }
-    };
+    let prog = resolve::translate(&mut ctx, prog)?;
 
-    let prog = match typecheck::translate(&mut ctx, prog) {
-        Ok(prog) => prog,
-        Err(err) => {
-            ctx.finish()?;
-            return Err(err);
-        }
-    };
+    let prog = typecheck::translate(&mut ctx, prog)?;
 
-    // println!("{prog:#?}");
+    let error_count = ctx.finish()?;
 
-    ctx.finish()?;
+    if error_count != 0 {
+        println!("{} errors occurred, compilation aborted.", error_count);
+        return Ok(());
+    }
+
+    let prog = codegen::translate(prog)?;
+
+    let mut output = File::create("output.c")?;
+
+    codegen::emit_code(prog, &mut output)?;
 
     Ok(())
 }

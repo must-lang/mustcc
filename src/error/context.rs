@@ -15,6 +15,7 @@ pub struct Context {
     renderer: Box<dyn DiagnosticRenderer>,
     diagnostics: Vec<Diagnostic>,
     sources: SourceMap,
+    err_count: usize,
 }
 
 impl Context {
@@ -24,21 +25,23 @@ impl Context {
             renderer,
             diagnostics: vec![],
             sources: SourceMap::new(),
+            err_count: 0,
         }
     }
 
     /// Print all diagnostic using provided renderer and destroy context.
-    pub(crate) fn finish(self) -> Result<(), InternalError> {
+    pub(crate) fn finish(self) -> Result<usize, InternalError> {
         for diag in self.diagnostics {
             self.renderer
                 .show(diag, &self.sources)
                 .map_err(|e| InternalError::AnyMsg(format!("Failed to show diagnostic: {e}")))?
         }
-        Ok(())
+        Ok(self.err_count)
     }
 
     /// Add a diagnostic to this context.
     pub(crate) fn report(&mut self, diag: Diagnostic) {
+        self.err_count += 1;
         self.diagnostics.push(diag);
     }
 

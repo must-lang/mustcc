@@ -45,6 +45,14 @@ impl SymTable {
         st
     }
 
+    pub fn get_type_order(&self) -> &Vec<TVar> {
+        &self.tvar_order
+    }
+
+    pub fn get_items(&self) -> &HashMap<NodeID, SymInfo> {
+        &self.node_map
+    }
+
     fn check_sizes(&self, ctx: &mut Context) {
         for (_, sym) in &self.node_map {
             match &sym.kind {
