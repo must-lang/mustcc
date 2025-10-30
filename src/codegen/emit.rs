@@ -4,6 +4,8 @@ use std::{
 };
 
 use crate::{
+    codegen::ast::VarID,
+    common::NodeID,
     symtable::{SymKind, TypeKind},
     tp::{TVar, TypeView},
 };
@@ -16,6 +18,15 @@ pub fn emit_code<W: Write>(prog: out_a::Program, w: &mut W) -> io::Result<()> {
     for tv in st.get_type_order() {
         let info = st.find_type_info(*tv);
         match &info.kind {
+            TypeKind::Builtin(str) => match str.as_str() {
+                "never" => write!(w, "typedef struct {{}} {};\n", tv)?,
+                "bool" => write!(w, "typedef unsigned char {};\n", tv)?,
+                "order" => write!(w, "typedef unsigned char {};\n", tv)?,
+                "u8" => write!(w, "typedef unsigned char {};\n", tv)?,
+                "usize" => write!(w, "typedef unsigned long int {};\n", tv)?,
+                "i32" => write!(w, "typedef int {};\n", tv)?,
+                _ => panic!("{}", str),
+            },
             TypeKind::Struct { params, fields } => write!(w, "typedef struct {} {};\n", tv, tv)?,
             TypeKind::Enum {
                 params,
@@ -27,6 +38,7 @@ pub fn emit_code<W: Write>(prog: out_a::Program, w: &mut W) -> io::Result<()> {
     for tv in st.get_type_order() {
         let info = st.find_type_info(*tv);
         match &info.kind {
+            TypeKind::Builtin(str) => (),
             TypeKind::Struct { params, fields } => {
                 write!(w, "struct {} {{\n", tv)?;
                 for (name, tp) in fields {
@@ -48,7 +60,8 @@ pub fn emit_code<W: Write>(prog: out_a::Program, w: &mut W) -> io::Result<()> {
                         SymKind::EnumCons { id, args, parent } => {
                             write!(w, "struct {{\n")?;
                             for (id, tp) in args.iter().enumerate() {
-                                write!(w, "{};\n", tp.with_name(&id.to_string()))?
+                                let name = format!("__{}", id);
+                                write!(w, "{};\n", tp.with_name(&name))?
                             }
                             write!(w, "}} __{};\n", id)?;
                         }
@@ -59,24 +72,76 @@ pub fn emit_code<W: Write>(prog: out_a::Program, w: &mut W) -> io::Result<()> {
             }
         }
     }
+
+    // generate functions declarations
+    for f in &prog.functions {
+        let info = st.find_sym_info(f.id);
+        let name = if info.mangle {
+            format!("{}", f.id)
+        } else {
+            f.name.clone()
+        };
+        let args_str = f
+            .args
+            .iter()
+            .map(|(_, a)| a.with_name(""))
+            .collect::<Vec<_>>()
+            .join(", ");
+        write!(w, "{} {}({});\n", f.ret_type.with_name(""), name, args_str)?;
+    }
+
+    // generate functions implementations
+    for func in prog.functions {
+        let args_str = func
+            .args
+            .iter()
+            .map(|a| a.1.with_name(&a.0))
+            .collect::<Vec<_>>()
+            .join(", ");
+        write!(
+            w,
+            "{} {}({}) {{\n",
+            func.ret_type.with_name(""),
+            func.name,
+            args_str
+        )?;
+        for stmt in func.body {
+            write!(w, "    {};\n", stmt)?
+        }
+        write!(w, "}}\n")?
+    }
     Ok(())
 }
 
 impl Display for TVar {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "__tv_{}", self.id())
+        write!(f, "tv_{}", self.id())
     }
 }
 
 impl Type {
-    pub fn with_name(&self, name: &str) -> String {
+    pub fn with_name<T: Display>(&self, name: T) -> String {
         match self.view() {
             TypeView::Unknown | TypeView::UVar(_) | TypeView::NumericUVar(_) => {
                 panic!("invalid type")
             }
             TypeView::NamedVar(tvar, _) | TypeView::Var(tvar) => format!("{} {}", tvar, name),
-            TypeView::Tuple(items) => todo!(),
-            TypeView::Array(_, _) => todo!(),
+            TypeView::Tuple(items) => {
+                println!("{}", self);
+                let mut buf = String::new();
+                buf += "struct {";
+                for (id, tp) in items.iter().enumerate() {
+                    println!("{}", id);
+                    buf += &tp.with_name(&format!("__{}", id));
+                    buf += ";";
+                }
+                buf += "}";
+                println!("{}", buf);
+                buf
+            }
+            TypeView::Array(size, tp) => {
+                format!("{}[{}]", tp.with_name(name), size)
+            }
             TypeView::Fun(args, ret) => {
                 let mut buf = String::new();
                 buf += &ret.with_name("");
@@ -95,5 +160,98 @@ impl Type {
                 todo!()
             }
         }
+    }
+}
+
+impl Display for out_a::Stmt {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            out_a::Stmt::Return { expr, ret_tp } => write!(f, "return {}", expr)?,
+            out_a::Stmt::VarDecl { id, tp } => write!(f, "{}", tp.with_name(id))?,
+            out_a::Stmt::If {
+                pred,
+                th,
+                el,
+                block_tp,
+            } => {
+                write!(f, "if ({}) {{\n", pred)?;
+                for stmt in th {
+                    write!(f, "    {};\n", stmt)?
+                }
+                write!(f, "}} else {{\n")?;
+                for stmt in el {
+                    write!(f, "    {};\n", stmt)?
+                }
+                write!(f, "}}\n")?;
+            }
+            out_a::Stmt::Assign { lval, rval } => write!(f, "{} = {}", lval, rval)?,
+            out_a::Stmt::While { cond, body } => {
+                write!(f, "while ({}) {{\n", cond)?;
+                for stmt in body {
+                    write!(f, "    {};\n", stmt)?
+                }
+                write!(f, "}};\n")?;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl Display for out_a::LValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ast::LValue::VarRef(var_ref) => write!(f, "{}", var_ref),
+            ast::LValue::FieldAccess {
+                var,
+                field_id,
+                field_tp,
+            } => todo!(),
+            ast::LValue::Deref { var, in_tp } => todo!(),
+        }
+    }
+}
+
+impl Display for out_a::RValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ast::RValue::NumLit(n, _) => write!(f, "{}", n),
+            ast::RValue::FunCall {
+                callee,
+                args,
+                ret_tp,
+            } => todo!(),
+            ast::RValue::Ref { var, tp } => todo!(),
+            ast::RValue::StructCons {
+                id,
+                initializers,
+                tp,
+            } => todo!(),
+            ast::RValue::Value(lvalue) => write!(f, "{}", lvalue),
+            ast::RValue::ArrayInit(rvalues) => {
+                write!(f, "[]")
+            }
+            ast::RValue::Tuple(vals) => {
+                write!(f, "{{")?;
+                for (id, v) in vals.iter().enumerate() {
+                    write!(f, ".__{} = {}", id, v)?
+                }
+                write!(f, "}}")
+            }
+        }
+    }
+}
+
+impl Display for out_a::VarRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ast::VarRef::LocalVar { id } => write!(f, "{}", id),
+            ast::VarRef::GlobalVar { id } => write!(f, "{}", id),
+        }
+    }
+}
+
+impl Display for NodeID {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "id_{}", self.get())
     }
 }

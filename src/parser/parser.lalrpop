@@ -403,6 +403,7 @@ RTypeData: RTypeData = {
     <id: Path> => RTypeData::Var(id),
     <id: Path> "<" <tps: CommaSep<RTypeNode>> ">" => RTypeData::TypeApp(id, tps),
     "(" ")" => RTypeData::Tuple(vec![]),
+    "(" <items: TwoOrMore<RTypeNode>> ")" => RTypeData::Tuple(items),
 
     "[" <size: Number> "]" <tp: RTypeNode> =>
         RTypeData::Array(size, Box::new(tp)),

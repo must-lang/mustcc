@@ -15,26 +15,41 @@ pub fn calculate_size(
 ) -> HashMap<TVar, usize> {
     let mut tvar_size = HashMap::new();
     for tvar in tvar_order {
-        let size = if tvar.is_builtin() {
-            tvar.builtin_size().unwrap()
-        } else {
-            let info = tvar_map.get(tvar).unwrap();
-            match &info.kind {
-                TypeKind::Struct { params, fields } => {
-                    let mut size = 0;
-                    for (_, f) in fields {
-                        size += calculate_type_size(ctx, &info.pos, &tvar_size, f);
-                    }
-                    size
+        let info = tvar_map.get(tvar).unwrap();
+        let size = match &info.kind {
+            TypeKind::Builtin(str) => tvar.builtin_size().unwrap(),
+            TypeKind::Struct { params, fields } => {
+                let mut size = 0;
+                for (_, f) in fields {
+                    size += calculate_type_size(ctx, &info.pos, &tvar_size, f);
                 }
-                TypeKind::Enum {
-                    params,
-                    constructors,
-                } => todo!(),
+                size
+            }
+            TypeKind::Enum {
+                params,
+                constructors,
+            } => {
+                let mut size = 0;
+                for (_, cons) in constructors {
+                    let info = node_map.get(cons).unwrap();
+                    let cons_size = match &info.kind {
+                        SymKind::Func { .. } | SymKind::Struct(_) | SymKind::Enum(_) => panic!(),
+                        SymKind::EnumCons { id, args, parent } => {
+                            let mut size = 0;
+                            for arg in args {
+                                size += calculate_type_size(ctx, &info.pos, &tvar_size, arg);
+                            }
+                            size
+                        }
+                    };
+                    size = size.max(cons_size);
+                }
+                size
             }
         };
         tvar_size.insert(*tvar, size);
     }
+
     tvar_size
 }
 

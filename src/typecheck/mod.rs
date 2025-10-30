@@ -603,11 +603,11 @@ fn check_expr(
                 .into_iter()
                 .map(|expr| check_expr(ctx, sym_table, env, expr, &tp, false))
                 .collect::<Result<_, _>>()?;
-            let tp = Type::array(size, tp);
-            if !unify(exp_tp, &tp) {
-                ctx.report(error::type_mismatch(pos, exp_tp.clone(), tp));
+            let arr_tp = Type::array(size, tp.clone());
+            if !unify(exp_tp, &arr_tp) {
+                ctx.report(error::type_mismatch(pos, exp_tp.clone(), arr_tp));
             }
-            out_a::Expr::ArrayInitExact(exprs)
+            out_a::Expr::ArrayInitExact(exprs, tp)
         }
         in_a::ExprData::ArrayInitRepeat(expr, size) => {
             if exp_mut {
@@ -615,11 +615,11 @@ fn check_expr(
             }
             let tp = env.fresh_uvar(&pos);
             let expr = check_expr(ctx, sym_table, env, *expr, &tp, false)?;
-            let tp = Type::array(size, tp);
-            if !unify(exp_tp, &tp) {
-                ctx.report(error::type_mismatch(pos, exp_tp.clone(), tp));
+            let arr_tp = Type::array(size, tp.clone());
+            if !unify(exp_tp, &arr_tp) {
+                ctx.report(error::type_mismatch(pos, exp_tp.clone(), arr_tp));
             }
-            out_a::Expr::ArrayInitRepeat(Box::new(expr), size)
+            out_a::Expr::ArrayInitRepeat(Box::new(expr), size, tp)
         }
         in_a::ExprData::Char(c) => {
             let tp = Type::builtin("u8");

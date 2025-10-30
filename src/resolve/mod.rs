@@ -162,10 +162,19 @@ fn tr_enum(
         .iter()
         .map(|func| (func.name.name_str(), func.id))
         .collect();
-    let kind = TypeKind::Enum {
-        params: params.values().map(|tv| *tv).collect(),
-        constructors,
+
+    let sym_info = SymInfo::build(e.name.data.clone(), e.pos.clone(), SymKind::Enum(tvar))
+        .with_attributes(e.attributes);
+
+    let kind = if let Some(ref s) = sym_info.builtin_name {
+        TypeKind::Builtin(s.clone())
+    } else {
+        TypeKind::Enum {
+            params: params.values().map(|tv| *tv).collect(),
+            constructors,
+        }
     };
+
     let type_info = TypeInfo {
         name: e.name.name_str(),
         pos: e.pos.clone(),
@@ -173,8 +182,7 @@ fn tr_enum(
         methods,
     };
     env.add_type_info(tvar, type_info);
-    let sym_info = SymInfo::build(e.name.data.clone(), e.pos.clone(), SymKind::Enum(tvar))
-        .with_attributes(e.attributes);
+
     env.add_sym_info(e.id, sym_info);
     env.leave_scope();
     Ok(for mut method in e.methods {
@@ -225,10 +233,20 @@ fn tr_struct(
         .map(|func| (func.name.name_str(), func.id))
         .collect();
 
-    let kind = TypeKind::Struct {
-        params: params.values().map(|tv| *tv).collect(),
-        fields,
+    let sym_info = SymInfo::build(s.name.data.clone(), s.pos.clone(), SymKind::Struct(tvar))
+        .with_attributes(s.attributes);
+
+    let kind = if let Some(ref s) = sym_info.builtin_name {
+        TypeKind::Builtin(s.clone())
+    } else {
+        TypeKind::Struct {
+            params: params.values().map(|tv| *tv).collect(),
+            fields,
+        }
     };
+
+    env.add_sym_info(s.id, sym_info);
+
     let type_info = TypeInfo {
         name: s.name.name_str(),
         pos: s.pos.clone(),
@@ -236,9 +254,7 @@ fn tr_struct(
         kind,
     };
     env.add_type_info(tvar, type_info);
-    let sym_info = SymInfo::build(s.name.data.clone(), s.pos.clone(), SymKind::Struct(tvar))
-        .with_attributes(s.attributes);
-    env.add_sym_info(s.id, sym_info);
+
     env.leave_scope();
     Ok(for mut method in s.methods {
         method.type_params = params

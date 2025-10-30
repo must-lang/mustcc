@@ -233,6 +233,7 @@ pub struct TypeInfo {
 
 #[derive(Debug)]
 pub enum TypeKind {
+    Builtin(String),
     Struct {
         params: HashSet<TVar>,
         fields: HashMap<String, Type>,

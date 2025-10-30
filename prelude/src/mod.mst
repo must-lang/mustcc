@@ -99,7 +99,16 @@ struct A {
     b: i32,
 }
 
-@entry
+enum E {
+    None,
+    Some(A)
+}
+
+fn t() -> (i32, i32) {
+    (42, 13)
+}
+
+@no_mangle
 pub fn main() {
     let mut i: i32 = 10;
     while i.ge(0) {

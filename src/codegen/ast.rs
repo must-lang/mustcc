@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::{common::NodeID, symtable::SymTable, tp::Type};
 
 #[derive(Debug)]
@@ -37,6 +39,10 @@ pub enum Stmt {
         lval: LValue,
         rval: RValue,
     },
+    While {
+        cond: VarRef,
+        body: Vec<Stmt>,
+    },
 }
 
 // ==== Values ==================================================================
@@ -58,7 +64,9 @@ pub enum RValue {
         initializers: Vec<(String, RValue)>,
         tp: Type,
     },
+    ArrayInit(Vec<RValue>),
     Value(LValue),
+    Tuple(Vec<RValue>),
 }
 
 #[derive(Debug)]
@@ -77,15 +85,16 @@ pub enum LValue {
 
 // ==== Vars ===================================================================
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum VarRef {
     LocalVar { id: VarID },
     GlobalVar { id: NodeID },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct VarID(usize);
 
+#[derive(Debug)]
 pub struct VarSpawner(usize);
 impl VarSpawner {
     pub fn new() -> Self {
@@ -95,5 +104,11 @@ impl VarSpawner {
     pub fn fresh(&mut self) -> VarID {
         self.0 += 1;
         VarID(self.0)
+    }
+}
+
+impl Display for VarID {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "v_{}", self.0)
     }
 }

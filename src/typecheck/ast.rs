@@ -89,8 +89,8 @@ pub enum Expr {
     Error,
     Char(u8),
     String(String),
-    ArrayInitRepeat(Box<Expr>, usize),
-    ArrayInitExact(Vec<Expr>),
+    ArrayInitRepeat(Box<Expr>, usize, Type),
+    ArrayInitExact(Vec<Expr>, Type),
     While {
         pred: Box<Expr>,
         block: Box<Expr>,
