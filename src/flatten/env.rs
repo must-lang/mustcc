@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    codegen::ast::{Stmt, VarID, VarRef, VarSpawner},
+    flatten::ast::{Operand, Stmt, VarID, VarRef, VarSpawner},
     tp::Type,
 };
 
@@ -28,13 +28,13 @@ impl Env {
         }
     }
 
-    pub(crate) fn var_decl(&mut self, name: Option<String>, tp: Type) -> (VarRef, Stmt) {
+    pub(crate) fn var_decl(&mut self, name: Option<String>, tp: Type) -> (Operand, Stmt) {
         let id = self.var_gen.fresh();
         if let Some(s) = name {
             self.vars.insert(s, id);
         }
         let stmt = Stmt::VarDecl { id, tp };
-        let var = VarRef::LocalVar { id };
+        let var = Operand::VarRef(VarRef::LocalVar { id });
         (var, stmt)
     }
 

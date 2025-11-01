@@ -1,9 +1,9 @@
 use std::fs::File;
 
 use crate::{
-    Cli, codegen,
+    Cli, cfg, cl_backend,
     error::{InternalError, ariadne_renderer::AriadneRenderer, context::Context},
-    mod_tree,
+    flatten, mod_tree,
     parser::parse_project,
     resolve, typecheck,
 };
@@ -33,11 +33,18 @@ pub fn run(config: Cli) -> Result<(), InternalError> {
         return Ok(());
     }
 
-    let prog = codegen::translate(prog)?;
+    if config.typecheck_only {
+        return Ok(());
+    }
 
-    let mut output = File::create("output.c")?;
+    let prog = flatten::translate(prog)?;
 
-    codegen::emit_code(prog, &mut output)?;
+    let prog = cfg::translate(prog)?;
+
+    let obj = cl_backend::translate(prog)?;
+
+    let obj_bytes = obj.emit().unwrap();
+    std::fs::write("output.o", obj_bytes).unwrap();
 
     Ok(())
 }

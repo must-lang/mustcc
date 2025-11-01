@@ -1,5 +1,3 @@
-use std::fmt::Display;
-
 use crate::{common::NodeID, symtable::SymTable, tp::Type};
 
 #[derive(Debug)]
@@ -17,12 +15,14 @@ pub struct Func {
     pub body: Vec<Stmt>,
 }
 
+// ==== Type ===================================================================
+
 // ==== Stmt ===================================================================
 
 #[derive(Debug)]
 pub enum Stmt {
     Return {
-        expr: VarRef,
+        expr: Operand,
         ret_tp: Type,
     },
     VarDecl {
@@ -30,7 +30,7 @@ pub enum Stmt {
         tp: Type,
     },
     If {
-        pred: VarRef,
+        pred: Operand,
         th: Vec<Stmt>,
         el: Vec<Stmt>,
         block_tp: Type,
@@ -40,7 +40,7 @@ pub enum Stmt {
         rval: RValue,
     },
     While {
-        cond: VarRef,
+        cond: Operand,
         body: Vec<Stmt>,
     },
 }
@@ -49,9 +49,13 @@ pub enum Stmt {
 
 #[derive(Debug)]
 pub enum RValue {
-    NumLit(usize, Type),
     FunCall {
         callee: VarRef,
+        args: Vec<VarRef>,
+        ret_tp: Type,
+    },
+    BuiltinFunc {
+        builtin_name: String,
         args: Vec<VarRef>,
         ret_tp: Type,
     },
@@ -65,8 +69,8 @@ pub enum RValue {
         tp: Type,
     },
     ArrayInit(Vec<RValue>),
-    Value(LValue),
     Tuple(Vec<RValue>),
+    Load(LValue),
 }
 
 #[derive(Debug)]
@@ -74,13 +78,19 @@ pub enum LValue {
     VarRef(VarRef),
     FieldAccess {
         var: VarRef,
-        field_id: String,
+        field_id: usize,
         field_tp: Type,
     },
     Deref {
         var: VarRef,
         in_tp: Type,
     },
+}
+
+#[derive(Debug, Clone)]
+pub enum Operand {
+    NumLit(usize, Type),
+    VarRef(VarRef),
 }
 
 // ==== Vars ===================================================================
@@ -104,11 +114,5 @@ impl VarSpawner {
     pub fn fresh(&mut self) -> VarID {
         self.0 += 1;
         VarID(self.0)
-    }
-}
-
-impl Display for VarID {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "v_{}", self.0)
     }
 }
