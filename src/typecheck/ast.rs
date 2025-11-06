@@ -31,7 +31,7 @@ pub enum Expr {
         id: NodeID,
         tp: Type,
     },
-    Tuple(Vec<Expr>),
+    Tuple(Vec<Expr>, Vec<Type>),
     FunCall {
         expr: Box<Expr>,
         args: Vec<Expr>,
@@ -41,6 +41,7 @@ pub enum Expr {
     FieldAccess {
         object: Box<Expr>,
         field_name: String,
+        struct_tp: Type,
         field_tp: Type,
     },
     Block {
@@ -88,11 +89,15 @@ pub enum Expr {
     },
     Error,
     Char(u8),
-    String(String),
     ArrayInitRepeat(Box<Expr>, usize, Type),
     ArrayInitExact(Vec<Expr>, Type),
     While {
         pred: Box<Expr>,
         block: Box<Expr>,
+    },
+    IndexAccess {
+        arr: Box<Expr>,
+        index: Box<Expr>,
+        tp: Type,
     },
 }

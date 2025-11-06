@@ -1,9 +1,7 @@
-use std::fs::File;
-
 use crate::{
-    Cli, cfg, cl_backend,
+    Cli, cl_backend,
     error::{InternalError, ariadne_renderer::AriadneRenderer, context::Context},
-    flatten, mod_tree,
+    mir, mod_tree,
     parser::parse_project,
     resolve, typecheck,
 };
@@ -37,9 +35,7 @@ pub fn run(config: Cli) -> Result<(), InternalError> {
         return Ok(());
     }
 
-    let prog = flatten::translate(prog)?;
-
-    let prog = cfg::translate(prog)?;
+    let prog = mir::translate(prog)?;
 
     let obj = cl_backend::translate(prog)?;
 

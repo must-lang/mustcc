@@ -1,5 +1,7 @@
 use std::{hash::Hash, num::NonZeroUsize};
 
+use crate::mir;
+
 static mut COUNTER: usize = 64;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -54,7 +56,7 @@ impl TVar {
 
     /// Check if type variable represents the never type.
     pub(crate) fn is_never(&self) -> bool {
-        self.id == 1
+        self.id == 0
     }
 
     pub(crate) fn of_builtin(name: &str) -> TVar {
@@ -106,6 +108,30 @@ impl TVar {
             return None;
         };
         Some(size)
+    }
+
+    pub fn builtin_as_mir_type(&self) -> Option<mir::ast::Type> {
+        let tp = if self.id < 13 {
+            match BUILTIN_TO_NAME[self.id] {
+                "never" => todo!(),
+                "bool" => todo!(),
+                "order" => todo!(),
+                "u8" => mir::ast::Type::Tu8,
+                "u16" => mir::ast::Type::Tu16,
+                "u32" => mir::ast::Type::Tu32,
+                "u64" => mir::ast::Type::Tu64,
+                "usize" => mir::ast::Type::Tusize,
+                "i8" => mir::ast::Type::Ti8,
+                "i16" => mir::ast::Type::Ti16,
+                "i32" => mir::ast::Type::Ti32,
+                "i64" => mir::ast::Type::Ti64,
+                "isize" => mir::ast::Type::Tisize,
+                _ => return None,
+            }
+        } else {
+            return None;
+        };
+        Some(tp)
     }
 }
 

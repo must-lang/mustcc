@@ -221,6 +221,7 @@ fn check_expr(
             out_a::Expr::FieldAccess {
                 object: Box::new(expr),
                 field_name,
+                struct_tp: tp,
                 field_tp: field_tp.clone(),
             }
         }
@@ -367,19 +368,19 @@ fn check_expr(
                 tps.push(tp);
                 ch_exprs.push(expr);
             }
-            let tp = Type::tuple(tps);
+            let tp = Type::tuple(tps.clone());
             if !unify(exp_tp, &tp) {
                 ctx.report(error::type_mismatch(pos, exp_tp.clone(), tp.clone()));
             }
-            out_a::Expr::Tuple(ch_exprs)
+            out_a::Expr::Tuple(ch_exprs, tps)
         }
         in_a::ExprData::String(s) => {
             let size = s.as_bytes().len();
             let tp = Type::ptr(Type::array(size, Type::builtin("u8")));
             if !unify(exp_tp, &tp) {
-                ctx.report(error::type_mismatch(pos, exp_tp.clone(), tp));
+                ctx.report(error::type_mismatch(pos, exp_tp.clone(), tp.clone()));
             }
-            out_a::Expr::String(s)
+            out_a::Expr::StringLit(s, tp)
         }
         in_a::ExprData::MethodCall(expr, method_name, exprs) => {
             let tp = env.fresh_uvar(&pos);
@@ -560,11 +561,12 @@ fn check_expr(
                 TypeView::TypeApp(tvar, _, items) => todo!(),
             };
             if !unify(exp_tp, &tp) {
-                ctx.report(error::type_mismatch(pos, exp_tp.clone(), tp));
+                ctx.report(error::type_mismatch(pos, exp_tp.clone(), tp.clone()));
             }
-            out_a::Expr::While {
-                pred: Box::new(arr),
-                block: Box::new(index),
+            out_a::Expr::IndexAccess {
+                arr: Box::new(arr),
+                index: Box::new(index),
+                tp: tp,
             }
         }
         in_a::ExprData::Match(expr_node, match_clauses) => {

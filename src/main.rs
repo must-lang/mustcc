@@ -2,12 +2,11 @@ use std::path::PathBuf;
 
 use clap::Parser;
 
-mod cfg;
 mod cl_backend;
 mod common;
 mod driver;
 mod error;
-mod flatten;
+mod mir;
 mod mod_tree;
 mod parser;
 mod resolve;

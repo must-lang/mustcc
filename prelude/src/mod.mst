@@ -94,14 +94,10 @@ pub fn print_int(mut n: i32) {
     }
 }
 
-struct A {
-    a: *A,
-    b: i32,
-}
-
-enum E {
-    None,
-    Some(A)
+fn arr() -> u8 {
+    let mut arr : [8]u8 = [0; 8];
+    arr.(2) = 2;
+    arr.(3)
 }
 
 fn t() -> (i32, i32) {

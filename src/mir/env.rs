@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    flatten::ast::{Operand, Stmt, VarID, VarRef, VarSpawner},
+    mir::ast::{VarID, VarSpawner},
     tp::Type,
 };
 
@@ -28,19 +28,16 @@ impl Env {
         }
     }
 
-    pub(crate) fn var_decl(&mut self, name: Option<String>, tp: Type) -> (Operand, Stmt) {
-        let id = self.var_gen.fresh();
-        if let Some(s) = name {
-            self.vars.insert(s, id);
-        }
-        let stmt = Stmt::VarDecl { id, tp };
-        let var = Operand::VarRef(VarRef::LocalVar { id });
-        (var, stmt)
-    }
+    // pub(crate) fn var_decl(&mut self, name: Option<String>, tp: Type) -> (VarID, Stmt) {
+    //     let id = self.var_gen.fresh();
+    //     if let Some(s) = name {
+    //         self.vars.insert(s, id);
+    //     }
+    //     let stmt = Stmt::LocalVarDecl { id, tp };
+    //     (id, stmt)
+    // }
 
-    pub(crate) fn lookup(&self, name: String) -> VarRef {
-        VarRef::LocalVar {
-            id: *self.vars.get(&name).unwrap(),
-        }
+    pub(crate) fn lookup(&self, name: &str) -> VarID {
+        *self.vars.get(name).unwrap()
     }
 }

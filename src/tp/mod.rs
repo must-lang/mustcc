@@ -239,6 +239,11 @@ impl Display for Type {
 #[must_use]
 pub fn unify(exp_tp: &Type, act_tp: &Type) -> bool {
     match (exp_tp.view(), act_tp.view()) {
+        (_, TypeView::NamedVar(tv2, _)) | (_, TypeView::Var(tv2)) if tv2.is_never() => true,
+
+        (TypeView::NamedVar(tv1, _), TypeView::NamedVar(tv2, _))
+        | (TypeView::Var(tv1), TypeView::Var(tv2)) => tv1 == tv2,
+
         (TypeView::NumericUVar(uv1), TypeView::NumericUVar(uv2))
         | (TypeView::UVar(uv1), TypeView::UVar(uv2)) => {
             uv1.union(&uv2);
@@ -299,9 +304,6 @@ pub fn unify(exp_tp: &Type, act_tp: &Type) -> bool {
         (TypeView::Ptr(tp1), TypeView::Ptr(tp2))
         | (TypeView::Ptr(tp1), TypeView::MutPtr(tp2))
         | (TypeView::MutPtr(tp1), TypeView::MutPtr(tp2)) => unify(&*tp1, &*tp2),
-
-        (TypeView::NamedVar(tv1, _), TypeView::NamedVar(tv2, _))
-        | (TypeView::Var(tv1), TypeView::Var(tv2)) => tv2.is_never() || tv1 == tv2,
 
         (TypeView::Fun(items1, ret1), TypeView::Fun(items2, ret2)) => {
             // use mutable ret here to unify as much as possible

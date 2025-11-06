@@ -53,6 +53,10 @@ impl SymTable {
         &self.node_map
     }
 
+    pub fn destroy_for_items(self) -> HashMap<NodeID, SymInfo> {
+        self.node_map
+    }
+
     fn check_sizes(&self, ctx: &mut Context) {
         for (_, sym) in &self.node_map {
             match &sym.kind {
@@ -151,6 +155,17 @@ impl SymTable {
             TypeView::Ptr(_) | TypeView::MutPtr(_) => TypeSize::Sized(8),
         }
     }
+
+    pub(crate) fn get_builtin_id(&self, name: &str) -> Option<NodeID> {
+        for (id, info) in &self.node_map {
+            if let Some(n) = &info.builtin_name {
+                if n == name {
+                    return Some(*id);
+                }
+            }
+        }
+        None
+    }
 }
 
 #[derive(Debug)]
@@ -159,6 +174,16 @@ pub enum TypeSize {
     Unsized,
     Unknown,
     NotUnified,
+}
+impl TypeSize {
+    pub(crate) fn as_usize(&self) -> usize {
+        match self {
+            TypeSize::Sized(n) => *n,
+            TypeSize::Unsized => panic!(),
+            TypeSize::Unknown => panic!(),
+            TypeSize::NotUnified => panic!(),
+        }
+    }
 }
 
 #[derive(Debug)]
