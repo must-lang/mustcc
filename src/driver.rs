@@ -1,7 +1,7 @@
 use crate::{
-    Cli, cl_backend,
+    Cli, core,
     error::{InternalError, ariadne_renderer::AriadneRenderer, context::Context},
-    mir, mod_tree,
+    mir, mod_tree, new_backend,
     parser::parse_project,
     resolve, typecheck,
 };
@@ -37,7 +37,11 @@ pub fn run(config: Cli) -> Result<(), InternalError> {
 
     let prog = mir::translate(prog)?;
 
-    let obj = cl_backend::translate(prog)?;
+    // let obj = cl_backend::translate(prog)?;
+
+    let prog = core::translate(prog);
+
+    let obj = new_backend::translate(prog)?;
 
     let obj_bytes = obj.emit().unwrap();
     std::fs::write("output.o", obj_bytes).unwrap();

@@ -115,6 +115,8 @@ fn tr_func(st: &SymTable, f: in_a::Func) -> Result<out_a::Func, InternalError> {
 
     let body = tr_expr(&mut env, &mut var_needs_stack, st, f.body)?;
 
+    let body = deblock(body, None);
+
     let func = out_a::Func {
         id: f.id,
         args,
@@ -123,6 +125,76 @@ fn tr_func(st: &SymTable, f: in_a::Func) -> Result<out_a::Func, InternalError> {
         var_needs_stack,
     };
     Ok(func)
+}
+
+fn deblock(e: out_a::Expr, acc: Option<out_a::Expr>) -> out_a::Expr {
+    match e {
+        ast::Expr::Block {
+            exprs,
+            last_expr,
+            block_tp,
+        } => {
+            let last_expr = deblock(*last_expr, acc);
+            exprs
+                .into_iter()
+                .fold(last_expr, |acc, e| deblock(e, Some(acc)))
+        }
+
+        ast::Expr::Tuple { fields, layout } => todo!(),
+        ast::Expr::FunCall {
+            expr,
+            args,
+            args_tp,
+            ret_tp,
+        } => todo!(),
+        ast::Expr::FieldAccess {
+            object,
+            field_id,
+            struct_layout,
+            element_layout,
+        } => todo!(),
+        ast::Expr::Return { expr, ret_tp } => todo!(),
+        ast::Expr::Let {
+            id,
+            layout,
+            is_mut,
+            expr,
+        } => todo!(),
+        ast::Expr::LetIn {
+            id,
+            layout,
+            is_mut,
+            expr,
+            e2,
+        } => todo!(),
+        ast::Expr::Assign {
+            lval,
+            rval,
+            assign_tp,
+        } => out_a::Expr::Assign {
+            lval: Box::new(deblock(*lval, None)),
+            rval: Box::new(deblock(*rval, None)),
+            assign_tp,
+        },
+        ast::Expr::Ref { var, tp } => todo!(),
+        ast::Expr::RefMut { var, tp } => todo!(),
+        ast::Expr::Deref { expr, in_tp } => todo!(),
+        ast::Expr::ArrayInitRepeat(expr, _, layout) => todo!(),
+        ast::Expr::ArrayInitExact(exprs, layout) => todo!(),
+        ast::Expr::While { pred, block } => todo!(),
+        ast::Expr::IndexAccess {
+            arr,
+            index,
+            arr_layout,
+            elem_layout,
+        } => todo!(),
+
+        // inductive base
+        ast::Expr::StringLit(_, layout) => todo!(),
+        ast::Expr::Char(_) => todo!(),
+        ast::Expr::NumLit(_, _) => todo!(),
+        ast::Expr::Var(var_ref) => ast::Expr::Var(var_ref),
+    }
 }
 
 fn tr_expr(

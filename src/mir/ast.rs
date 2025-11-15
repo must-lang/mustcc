@@ -167,6 +167,13 @@ pub enum Expr {
         is_mut: bool,
         expr: Box<Expr>,
     },
+    LetIn {
+        id: VarID,
+        layout: Layout,
+        is_mut: bool,
+        expr: Box<Expr>,
+        e2: Box<Expr>,
+    },
     // Match {
     //     expr: Box<Expr>,
     //     clauses: Vec<(Pattern, Expr)>,

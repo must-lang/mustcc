@@ -2,12 +2,13 @@ use std::path::PathBuf;
 
 use clap::Parser;
 
-mod cl_backend;
 mod common;
+mod core;
 mod driver;
 mod error;
 mod mir;
 mod mod_tree;
+mod new_backend;
 mod parser;
 mod resolve;
 mod symtable;
