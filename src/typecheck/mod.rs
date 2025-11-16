@@ -240,7 +240,7 @@ fn check_expr(
             env.new_scope();
             let exprs = expr_nodes
                 .into_iter()
-                .map(|expr| check_expr(ctx, sym_table, env, expr, &Type::unit(), false))
+                .map(|expr| check_expr(ctx, sym_table, env, expr, &Type::fresh_uvar(), false))
                 .collect::<Result<_, _>>()?;
             let expr = check_expr(ctx, sym_table, env, *expr, exp_tp, exp_mut)?;
             env.leave_scope();
