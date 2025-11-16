@@ -149,4 +149,8 @@ pub enum Expr {
         pred: Box<Expr>,
         block: Box<Expr>,
     },
+    Builtin {
+        name: String,
+        args: Vec<Expr>,
+    },
 }

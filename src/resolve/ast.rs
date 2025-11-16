@@ -76,6 +76,7 @@ pub enum ExprData {
     ArrayInitExact(Vec<ExprNode>),
     ArrayInitRepeat(Box<ExprNode>, usize),
     Char(u8),
+    Builtin(String, Vec<ExprNode>),
 }
 
 // ==== Pattern matching =======================================================

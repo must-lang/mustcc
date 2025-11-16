@@ -263,6 +263,17 @@ impl<'ctx> Lowerer<'ctx> {
                 self.lower_expr(b, *e1);
                 self.lower_expr(b, *e2)
             }
+            ast::Expr::Builtin { name, mut args } => match name.as_str() {
+                "iadd" => {
+                    let y = args.pop().unwrap();
+                    let x = args.pop().unwrap();
+                    let x = self.lower_expr(b, x).unwrap();
+                    let y = self.lower_expr(b, y).unwrap();
+                    let v = b.ins().iadd(x, y);
+                    Some(v)
+                }
+                s => panic!("unknown instruction {}", s),
+            },
         }
     }
 

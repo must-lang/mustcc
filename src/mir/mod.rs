@@ -228,6 +228,10 @@ fn deblock(e: out_a::Expr, acc: Option<out_a::Expr>) -> out_a::Expr {
         ast::Expr::NumLit(n, tp) => ast::Expr::NumLit(n, tp),
         ast::Expr::Var(var_ref) => ast::Expr::Var(var_ref),
         ast::Expr::Ignore { e1, e2 } => todo!(),
+        ast::Expr::Builtin(name, exprs) => {
+            let exprs = exprs.into_iter().map(|e| deblock(e, None)).collect();
+            ast::Expr::Builtin(name, exprs)
+        }
     }
 }
 
@@ -437,6 +441,13 @@ fn tr_expr(
             el,
             block_tp,
         } => todo!(),
+        in_a::Expr::Builtin(name, args) => {
+            let args = args
+                .into_iter()
+                .map(|e| tr_expr(env, vns, st, e))
+                .collect::<Result<_, _>>()?;
+            out_a::Expr::Builtin(name, args)
+        }
     })
 }
 

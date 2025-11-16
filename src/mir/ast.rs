@@ -192,4 +192,5 @@ pub enum Expr {
         elem_layout: Layout,
     },
     Var(VarRef),
+    Builtin(String, Vec<Expr>),
 }
