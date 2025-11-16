@@ -15,23 +15,6 @@ pub enum Type {
     Ti64,
     Tisize,
 }
-impl Type {
-    pub(crate) fn to_cl_type(&self) -> cranelift_codegen::ir::Type {
-        use cranelift_codegen::ir::types::*;
-        match self {
-            Self::Tu8 => I8,
-            Self::Tu16 => I16,
-            Self::Tu32 => I32,
-            Self::Tu64 => I64,
-            Self::Tusize => I64,
-            Self::Ti8 => I8,
-            Self::Ti16 => I16,
-            Self::Ti32 => I32,
-            Self::Ti64 => I64,
-            Self::Tisize => I64,
-        }
-    }
-}
 
 #[derive(Debug, Clone)]
 pub enum TypeLayout {
@@ -178,10 +161,6 @@ pub enum Expr {
         e1: Box<Expr>,
         e2: Box<Expr>,
     },
-    // Match {
-    //     expr: Box<Expr>,
-    //     clauses: Vec<(Pattern, Expr)>,
-    // },
     Assign {
         lval: Box<Expr>,
         rval: Box<Expr>,

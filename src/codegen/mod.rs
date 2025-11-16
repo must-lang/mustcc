@@ -1,22 +1,16 @@
 use std::collections::HashMap;
-use std::env::var;
 
 use crate::common::NodeID;
 use crate::error::InternalError;
-use crate::symtable::SymTable;
-use crate::tp;
-use cranelift_codegen::Context;
-use cranelift_codegen::ir::immediates::Offset32;
 use cranelift_codegen::ir::{
-    Block, FuncRef, InstBuilder, MemFlags, SigRef, Signature, StackSlot, StackSlotData,
-    StackSlotKind, Value, types::*,
+    InstBuilder, MemFlags, Signature, StackSlotData, StackSlotKind, Value, types::*,
 };
 use cranelift_codegen::settings::Configurable;
 use cranelift_codegen::{ir::AbiParam, isa, settings};
 
-use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext, Switch, Variable};
+use cranelift_frontend::{FunctionBuilder, FunctionBuilderContext};
 use cranelift_module::{FuncId, Linkage, Module};
-use cranelift_object::object::write::elf::Sym;
+
 use cranelift_object::{ObjectModule, ObjectProduct};
 
 use crate::core::ast;
@@ -59,41 +53,6 @@ struct Lowerer<'ctx> {
     m: &'ctx mut ObjectModule,
     id_fn_map: HashMap<NodeID, FuncId>,
     variables: HashMap<ast::VarID, Value>,
-}
-
-pub enum Var {
-    Reg(Variable),
-    FnArg(Value),
-    Stack { ss: StackSlot, offset: usize },
-}
-
-const BUILTIN_FUNCTIONS: [&'static str; 1] = ["i32_add"];
-
-#[derive(Debug)]
-pub enum LRes {
-    Val(Value),
-    Vals(Vec<Value>),
-    Func(FuncRef),
-    Builtin(String),
-    StackS(StackSlot),
-    Unit,
-}
-
-fn make_sig(sig: &mut Signature, args: &[ast::Type], rets: &[ast::Type]) {
-    for arg in args {
-        sig.params.push(AbiParam::new(arg.to_cl_type()));
-    }
-    for ret in rets {
-        sig.returns.push(AbiParam::new(ret.to_cl_type()));
-    }
-}
-
-fn vals_to_lres(vals: &[Value]) -> LRes {
-    match vals.len() {
-        0 => LRes::Unit,
-        1 => LRes::Val(vals[0]),
-        _ => LRes::Vals(vals.to_owned()),
-    }
 }
 
 impl<'ctx> Lowerer<'ctx> {
@@ -183,7 +142,6 @@ impl<'ctx> Lowerer<'ctx> {
                         let v2 = vals[1];
                         let val = b.ins().iadd(v1, v2);
                         b.ins().return_(&[val]);
-                        // println!("{}", b.func.display());
                         b.finalize();
                         match self.m.define_function(func_id, &mut ctx) {
                             Ok(o) => (),
@@ -249,19 +207,6 @@ impl<'ctx> Lowerer<'ctx> {
         self.m.clear_context(&mut ctx);
     }
 
-    pub fn lres_to_val(&mut self, b: &mut FunctionBuilder, lr: LRes) -> Value {
-        match lr {
-            LRes::Val(value) => value,
-            LRes::Func(func_ref) => b.ins().func_addr(I64, func_ref),
-            LRes::Builtin(name) => todo!(),
-            LRes::Vals(values) => todo!(),
-            LRes::Unit => todo!(),
-            LRes::StackS(_) => todo!(),
-        }
-    }
-
-    /// Returns None on control statements, eg return.
-    #[must_use]
     pub fn lower_expr(&mut self, b: &mut FunctionBuilder, e: ast::Expr) -> Option<Value> {
         match e {
             ast::Expr::FunCall { expr, args, sig } => {

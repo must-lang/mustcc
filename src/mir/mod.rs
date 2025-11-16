@@ -145,7 +145,22 @@ fn deblock(e: out_a::Expr, acc: Option<out_a::Expr>) -> out_a::Expr {
             args,
             args_tp,
             ret_tp,
-        } => todo!(),
+        } => {
+            let e1 = ast::Expr::FunCall {
+                expr,
+                args,
+                args_tp,
+                ret_tp,
+            };
+            if let Some(e2) = acc {
+                out_a::Expr::Ignore {
+                    e1: Box::new(e1),
+                    e2: Box::new(e2),
+                }
+            } else {
+                e1
+            }
+        }
         ast::Expr::FieldAccess {
             object,
             field_id,

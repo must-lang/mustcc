@@ -2,13 +2,13 @@ use std::path::PathBuf;
 
 use clap::Parser;
 
+mod codegen;
 mod common;
 mod core;
 mod driver;
 mod error;
 mod mir;
 mod mod_tree;
-mod new_backend;
 mod parser;
 mod resolve;
 mod symtable;
@@ -29,6 +29,10 @@ pub struct Cli {
     /// Only check types and exit
     #[arg(short, long, default_value_t = false)]
     typecheck_only: bool,
+
+    /// Print program in core IR
+    #[arg(short, long, default_value_t = false)]
+    core_dump: bool,
 }
 
 /// Entry point, parses command line arguments and starts the compiler pipeline.

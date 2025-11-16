@@ -90,36 +90,7 @@ fn tr_expr(env: &mut Env, e: in_a::Expr) -> out_a::Expr {
                     field_count,
                     fields,
                 } => {
-                    let mut out_args = vec![];
-                    let ss = out_a::Expr::StackSlot {
-                        size: ret_tp.size as u32,
-                    };
-                    out_args.extend(args.into_iter().map(|a| tr_expr(env, a)));
-                    let sig = make_sig(args_tp, ret_tp);
-                    let id = env.fresh_var();
-                    out_args.push(out_a::Expr::Value(out_a::Value::Var(out_a::VarRef::Local(
-                        id,
-                    ))));
-                    out_a::Expr::Let {
-                        id,
-                        e1: Box::new(ss),
-                        e2: Box::new(out_a::Expr::Ignore {
-                            e1: Box::new(out_a::Expr::Store {
-                                ptr: Box::new(out_a::Expr::Value(out_a::Value::Var(
-                                    out_a::VarRef::Local(id),
-                                ))),
-                                val: Box::new(out_a::Expr::FunCall {
-                                    expr: Box::new(expr),
-                                    args: out_args,
-                                    sig,
-                                }),
-                                offset: 0,
-                            }),
-                            e2: Box::new(out_a::Expr::Value(out_a::Value::Var(
-                                out_a::VarRef::Local(id),
-                            ))),
-                        }),
-                    }
+                    todo!("sret is not implemented yet")
                 }
             }
         }

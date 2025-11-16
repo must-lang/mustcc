@@ -1,0 +1,38 @@
+
+@builtin("never")
+pub enum never {}
+
+@builtin("i32")
+pub struct i32 {} with {
+    @builtin("i32_add")
+    pub fn add(self, other: i32) -> i32;
+}
+
+struct S {
+    a: i32,
+    b: i32,
+}
+
+@extern
+@no_mangle
+fn main() -> i32 {
+    let x = 42;
+    let y = f(x, 13, g(s(), 69));
+    y.add(x)
+}
+
+fn g(x: i32, z: i32) -> i32 {
+    x
+}
+
+fn f(x: i32, y: i32, z: i32) -> i32 {
+    z
+}
+
+fn s() -> i32 {
+    let s = S {
+        a = 75,
+        b = 313,
+    };
+    s.a
+}
