@@ -264,31 +264,19 @@ impl<'ctx> Lowerer<'ctx> {
     #[must_use]
     pub fn lower_expr(&mut self, b: &mut FunctionBuilder, e: ast::Expr) -> Option<Value> {
         match e {
-            ast::Expr::FunCall { expr, args } => {
+            ast::Expr::FunCall { expr, args, sig } => {
                 let mut fn_args = vec![];
                 for arg in args {
                     if let Some(v) = self.lower_expr(b, arg) {
                         fn_args.push(v)
                     }
                 }
-                match expr {
-                    ast::VarRef::Local(var_id) => {
-                        let v = *self.variables.get(&var_id).unwrap();
-                        let sig = todo!();
-                        let inst = b.ins().call_indirect(sig, v, &fn_args);
-                        let ret = b.inst_results(inst);
-                        let v = ret[0];
-                        Some(v)
-                    }
-                    ast::VarRef::Global(node_id) => {
-                        let fn_id = *self.id_fn_map.get(&node_id).unwrap();
-                        let fn_ref = self.m.declare_func_in_func(fn_id, b.func);
-                        let inst = b.ins().call(fn_ref, &fn_args);
-                        let ret = b.inst_results(inst);
-                        let v = ret[0];
-                        Some(v)
-                    }
-                }
+                let callee = self.lower_expr(b, *expr).unwrap();
+                let sig = self.sig_from_core(sig);
+                let sig_ref = b.import_signature(sig);
+                let inst = b.ins().call_indirect(sig_ref, callee, &fn_args);
+                let ret = b.inst_results(inst);
+                ret.get(0).map(|f| *f)
             }
             ast::Expr::Return { expr } => {
                 if let Some(v) = self.lower_expr(b, *expr) {
@@ -322,9 +310,13 @@ impl<'ctx> Lowerer<'ctx> {
                 None
             }
             ast::Expr::Load { tp, ptr, offset } => {
-                let p = self.lower_expr(b, *ptr)?;
-                b.ins().load(tp.to_cl_type(), MemFlags::new(), p, offset);
-                None
+                let p = self.lower_expr(b, *ptr).unwrap();
+                let v = b.ins().load(tp.to_cl_type(), MemFlags::new(), p, offset);
+                Some(v)
+            }
+            ast::Expr::Ignore { e1, e2 } => {
+                self.lower_expr(b, *e1);
+                self.lower_expr(b, *e2)
             }
         }
     }
@@ -332,11 +324,33 @@ impl<'ctx> Lowerer<'ctx> {
     pub fn tr_value(&mut self, b: &mut FunctionBuilder, v: ast::Value) -> Option<Value> {
         match v {
             ast::Value::Unit => None,
-            ast::Value::Var(var_ref) => todo!(),
+            ast::Value::Var(var_ref) => match var_ref {
+                ast::VarRef::Local(var_id) => {
+                    let v = *self.variables.get(&var_id).unwrap();
+                    Some(v)
+                }
+                ast::VarRef::Global(node_id) => {
+                    let f_id = *self.id_fn_map.get(&node_id).unwrap();
+                    let f_ref = self.m.declare_func_in_func(f_id, b.func);
+                    let v = b.ins().func_addr(I64, f_ref);
+                    Some(v)
+                }
+            },
             ast::Value::Const(n, tp) => {
                 let v = b.ins().iconst(tp.to_cl_type(), n as i64);
                 Some(v)
             }
         }
+    }
+
+    fn sig_from_core(&self, fn_sig: ast::FnSig) -> Signature {
+        let mut sig = self.m.make_signature();
+        for param in fn_sig.params {
+            sig.params.push(AbiParam::new(param.to_cl_type()));
+        }
+        for param in fn_sig.returns {
+            sig.returns.push(AbiParam::new(param.to_cl_type()));
+        }
+        sig
     }
 }

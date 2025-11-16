@@ -37,9 +37,9 @@ pub fn run(config: Cli) -> Result<(), InternalError> {
 
     let prog = mir::translate(prog)?;
 
-    // let obj = cl_backend::translate(prog)?;
-
     let prog = core::translate(prog);
+
+    println!("{:#?}", prog);
 
     let obj = new_backend::translate(prog)?;
 

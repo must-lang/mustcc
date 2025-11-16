@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use cranelift_codegen::ir::Signature;
+
 use crate::common::NodeID;
 
 #[derive(Debug, Clone)]
@@ -14,6 +16,12 @@ pub enum Type {
     Ti32,
     Ti64,
     Tisize,
+}
+
+#[derive(Debug, Clone)]
+pub struct FnSig {
+    pub params: Vec<Type>,
+    pub returns: Vec<Type>,
 }
 
 impl Type {
@@ -91,13 +99,13 @@ impl VarSpawner {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum VarRef {
     Local(VarID),
     Global(NodeID),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Value {
     Unit,
     Var(VarRef),
@@ -108,14 +116,19 @@ pub enum Value {
 pub enum Expr {
     Value(Value),
     FunCall {
-        expr: VarRef,
+        expr: Box<Expr>,
         args: Vec<Expr>,
+        sig: FnSig,
     },
     Return {
         expr: Box<Expr>,
     },
     Let {
         id: VarID,
+        e1: Box<Expr>,
+        e2: Box<Expr>,
+    },
+    Ignore {
         e1: Box<Expr>,
         e2: Box<Expr>,
     },

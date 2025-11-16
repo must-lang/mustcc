@@ -137,10 +137,9 @@ fn deblock(e: out_a::Expr, acc: Option<out_a::Expr>) -> out_a::Expr {
             let last_expr = deblock(*last_expr, acc);
             exprs
                 .into_iter()
-                .fold(last_expr, |acc, e| deblock(e, Some(acc)))
+                .rfold(last_expr, |acc, e| deblock(e, Some(acc)))
         }
-
-        ast::Expr::Tuple { fields, layout } => todo!(),
+        ast::Expr::Tuple { fields, layout } => ast::Expr::Tuple { fields, layout },
         ast::Expr::FunCall {
             expr,
             args,
@@ -152,14 +151,35 @@ fn deblock(e: out_a::Expr, acc: Option<out_a::Expr>) -> out_a::Expr {
             field_id,
             struct_layout,
             element_layout,
-        } => todo!(),
-        ast::Expr::Return { expr, ret_tp } => todo!(),
+        } => {
+            let e1 = ast::Expr::FieldAccess {
+                object,
+                field_id,
+                struct_layout,
+                element_layout,
+            };
+            if let Some(e2) = acc {
+                out_a::Expr::Ignore {
+                    e1: Box::new(e1),
+                    e2: Box::new(e2),
+                }
+            } else {
+                e1
+            }
+        }
+        ast::Expr::Return { expr, ret_tp } => ast::Expr::Return { expr, ret_tp },
         ast::Expr::Let {
             id,
             layout,
             is_mut,
             expr,
-        } => todo!(),
+        } => ast::Expr::LetIn {
+            id,
+            layout,
+            is_mut,
+            expr,
+            e2: Box::new(acc.unwrap()),
+        },
         ast::Expr::LetIn {
             id,
             layout,
@@ -188,12 +208,11 @@ fn deblock(e: out_a::Expr, acc: Option<out_a::Expr>) -> out_a::Expr {
             arr_layout,
             elem_layout,
         } => todo!(),
-
-        // inductive base
         ast::Expr::StringLit(_, layout) => todo!(),
         ast::Expr::Char(_) => todo!(),
-        ast::Expr::NumLit(_, _) => todo!(),
+        ast::Expr::NumLit(n, tp) => ast::Expr::NumLit(n, tp),
         ast::Expr::Var(var_ref) => ast::Expr::Var(var_ref),
+        ast::Expr::Ignore { e1, e2 } => todo!(),
     }
 }
 
@@ -339,7 +358,6 @@ fn tr_expr(
                 expr: Box::new(expr),
             }
         }
-        in_a::Expr::Match { expr, clauses } => todo!(),
         in_a::Expr::StructCons {
             id,
             initializers,
@@ -398,6 +416,12 @@ fn tr_expr(
             }
         }
         in_a::Expr::IndexAccess { arr, index, tp } => todo!(),
+        in_a::Expr::If {
+            pred,
+            th,
+            el,
+            block_tp,
+        } => todo!(),
     })
 }
 
@@ -494,15 +518,6 @@ fn get_layout(st: &SymTable, tp: crate::tp::Type) -> out_a::Layout {
         crate::tp::TypeView::Fun(_, _)
         | crate::tp::TypeView::MutPtr(_)
         | crate::tp::TypeView::Ptr(_) => out_a::Layout {
-            layout: TypeLayout::Simple {
-                tp: ast::Type::Tusize,
-            },
-            size: 8,
-            offset: 0,
-            align: 3,
-        },
-        // TODO:
-        crate::tp::TypeView::Result(_, _) => out_a::Layout {
             layout: TypeLayout::Simple {
                 tp: ast::Type::Tusize,
             },

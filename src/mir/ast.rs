@@ -174,6 +174,10 @@ pub enum Expr {
         expr: Box<Expr>,
         e2: Box<Expr>,
     },
+    Ignore {
+        e1: Box<Expr>,
+        e2: Box<Expr>,
+    },
     // Match {
     //     expr: Box<Expr>,
     //     clauses: Vec<(Pattern, Expr)>,
