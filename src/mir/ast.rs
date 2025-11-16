@@ -67,15 +67,7 @@ pub struct Symbol {
 
 #[derive(Debug)]
 pub enum SymKind {
-    Func {
-        args: Vec<Type>,
-        returns: Vec<Type>,
-    },
-    BuiltinFunc {
-        args: Vec<Type>,
-        returns: Vec<Type>,
-        item_name: String,
-    },
+    Func { args: Vec<Type>, returns: Vec<Type> },
 }
 
 #[derive(Debug)]
@@ -192,4 +184,5 @@ pub enum Expr {
         elem_layout: Layout,
     },
     Var(VarRef),
+    Builtin(String, Vec<Expr>),
 }

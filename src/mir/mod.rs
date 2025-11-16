@@ -58,15 +58,7 @@ fn make_symtable(st: SymTable) -> HashMap<crate::common::NodeID, ast::Symbol> {
                         }
                     };
                 }
-                if let Some(n) = &info.builtin_name {
-                    out_a::SymKind::BuiltinFunc {
-                        args,
-                        returns,
-                        item_name: n.clone(),
-                    }
-                } else {
-                    out_a::SymKind::Func { args, returns }
-                }
+                out_a::SymKind::Func { args, returns }
             }
             crate::symtable::SymKind::Struct(tvar) => continue,
             crate::symtable::SymKind::Enum(tvar) => continue,
@@ -228,6 +220,10 @@ fn deblock(e: out_a::Expr, acc: Option<out_a::Expr>) -> out_a::Expr {
         ast::Expr::NumLit(n, tp) => ast::Expr::NumLit(n, tp),
         ast::Expr::Var(var_ref) => ast::Expr::Var(var_ref),
         ast::Expr::Ignore { e1, e2 } => todo!(),
+        ast::Expr::Builtin(name, exprs) => {
+            let exprs = exprs.into_iter().map(|e| deblock(e, None)).collect();
+            ast::Expr::Builtin(name, exprs)
+        }
     }
 }
 
@@ -437,6 +433,13 @@ fn tr_expr(
             el,
             block_tp,
         } => todo!(),
+        in_a::Expr::Builtin(name, args) => {
+            let args = args
+                .into_iter()
+                .map(|e| tr_expr(env, vns, st, e))
+                .collect::<Result<_, _>>()?;
+            out_a::Expr::Builtin(name, args)
+        }
     })
 }
 

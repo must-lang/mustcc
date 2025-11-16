@@ -100,4 +100,5 @@ pub enum Expr {
         index: Box<Expr>,
         tp: Type,
     },
+    Builtin(String, Vec<Expr>),
 }

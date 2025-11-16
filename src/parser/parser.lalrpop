@@ -557,6 +557,10 @@ ExprF: ExprData = {
     "(" <args: CommaSep<ExprNode<Expr>>> ")" =>
         ExprData::MethodCall(Box::new(expr), id, args),
 
+    "@" <id: Ident>
+    "(" <args: CommaSep<ExprNode<Expr>>> ")" =>
+        ExprData::Builtin(id, args),
+
     "[" <exprs: CommaSep<ExprNode<Expr>>> "]" =>
         ExprData::ArrayInitExact(exprs),
 

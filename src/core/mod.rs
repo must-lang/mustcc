@@ -184,6 +184,10 @@ fn tr_expr(env: &mut Env, e: in_a::Expr) -> out_a::Expr {
                 e2: Box::new(e2),
             }
         }
+        in_a::Expr::Builtin(name, exprs) => {
+            let args = exprs.into_iter().map(|a| tr_expr(env, a)).collect();
+            out_a::Expr::Builtin { name, args }
+        }
     }
 }
 

@@ -630,5 +630,27 @@ fn check_expr(
             }
             out_a::Expr::Char(c)
         }
+        in_a::ExprData::Builtin(name, expr_nodes) => {
+            let (args_tp, ret_tp) = get_builtin_type(&name);
+            let mut args = vec![];
+            for (expr, tp) in expr_nodes.into_iter().zip(args_tp.iter()) {
+                let e = check_expr(ctx, sym_table, env, expr, tp, false)?;
+                args.push(e);
+            }
+            if !unify(exp_tp, &ret_tp) {
+                ctx.report(error::type_mismatch(pos, exp_tp.clone(), ret_tp));
+            }
+            out_a::Expr::Builtin(name, args)
+        }
     })
+}
+
+fn get_builtin_type(name: &str) -> (Vec<Type>, Type) {
+    match name {
+        "iadd" => {
+            let tp = Type::numeric_uvar();
+            (vec![tp.clone(), tp.clone()], tp)
+        }
+        _ => panic!("unknown builtin name"),
+    }
 }

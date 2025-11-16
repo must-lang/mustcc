@@ -4,8 +4,9 @@ pub enum never {}
 
 @builtin("i32")
 pub struct i32 {} with {
-    @builtin("i32_add")
-    pub fn add(self, other: i32) -> i32;
+    pub fn add(self, other: i32) -> i32 {
+        @iadd(self, other)
+    }
 }
 
 struct S {

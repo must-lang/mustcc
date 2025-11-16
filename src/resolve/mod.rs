@@ -612,6 +612,13 @@ fn tr_expr(
             let tp = env.resolve_type(ctx, rtype_node)?;
             out_a::ExprData::Cast(Box::new(expr_node), tp)
         }
+        in_a::ExprData::Builtin(ident, expr_nodes) => {
+            let expr_nodes = expr_nodes
+                .into_iter()
+                .map(|expr| tr_expr(ctx, env, expr))
+                .collect::<Result<_, _>>()?;
+            out_a::ExprData::Builtin(ident.data, expr_nodes)
+        }
     };
     let expr = out_a::ExprNode { data, pos };
     Ok(expr)
