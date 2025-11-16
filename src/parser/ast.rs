@@ -334,6 +334,10 @@ pub enum ExprData {
     ///
     /// x as u8
     Cast(Box<ExprNode>, RTypeNode),
+    /// Builtin macro.
+    ///
+    /// @<name>(arg1, arg2, arg3)
+    Builtin(Ident, Vec<ExprNode>),
 }
 
 // ==== Pattern matching =======================================================

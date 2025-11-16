@@ -612,6 +612,7 @@ fn tr_expr(
             let tp = env.resolve_type(ctx, rtype_node)?;
             out_a::ExprData::Cast(Box::new(expr_node), tp)
         }
+        in_a::ExprData::Builtin(ident, expr_nodes) => todo!(),
     };
     let expr = out_a::ExprNode { data, pos };
     Ok(expr)
