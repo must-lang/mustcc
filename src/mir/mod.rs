@@ -58,15 +58,7 @@ fn make_symtable(st: SymTable) -> HashMap<crate::common::NodeID, ast::Symbol> {
                         }
                     };
                 }
-                if let Some(n) = &info.builtin_name {
-                    out_a::SymKind::BuiltinFunc {
-                        args,
-                        returns,
-                        item_name: n.clone(),
-                    }
-                } else {
-                    out_a::SymKind::Func { args, returns }
-                }
+                out_a::SymKind::Func { args, returns }
             }
             crate::symtable::SymKind::Struct(tvar) => continue,
             crate::symtable::SymKind::Enum(tvar) => continue,

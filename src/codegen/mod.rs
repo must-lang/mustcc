@@ -94,65 +94,6 @@ impl<'ctx> Lowerer<'ctx> {
 
                 self.id_fn_map.insert(id, func_id);
             }
-            ast::SymKind::BuiltinFunc {
-                args,
-                returns,
-                item_name,
-            } => {
-                let mut sig = self.m.make_signature();
-
-                for tp in args {
-                    let param = AbiParam::new(tp.to_cl_type());
-                    sig.params.push(param);
-                }
-                for tp in returns {
-                    let param = AbiParam::new(tp.to_cl_type());
-                    sig.returns.push(param);
-                }
-
-                let name = if f.mangle {
-                    &format!("id_{}", id.get())
-                } else {
-                    &f.name
-                };
-
-                let link = if f.is_extern {
-                    Linkage::Export
-                } else {
-                    Linkage::Local
-                };
-
-                let func_id = self.m.declare_function(name, link, &sig).unwrap();
-
-                self.id_fn_map.insert(id, func_id);
-
-                let mut ctx = self.m.make_context();
-                let mut fn_ctx = FunctionBuilderContext::new();
-
-                match item_name.as_str() {
-                    "i32_add" => {
-                        ctx.func.signature = sig.clone();
-                        let mut b = FunctionBuilder::new(&mut ctx.func, &mut fn_ctx);
-                        let block = b.create_block();
-                        b.append_block_params_for_function_params(block);
-                        b.switch_to_block(block);
-                        b.seal_block(block);
-                        let vals = b.block_params(block);
-                        let v1 = vals[0];
-                        let v2 = vals[1];
-                        let val = b.ins().iadd(v1, v2);
-                        b.ins().return_(&[val]);
-                        b.finalize();
-                        match self.m.define_function(func_id, &mut ctx) {
-                            Ok(o) => (),
-                            Err(e) => println!("{:#?}", e),
-                        }
-                    }
-                    _ => todo!(),
-                }
-                self.m.clear_context(&mut ctx);
-                self.m.clear_signature(&mut sig);
-            }
         }
     }
 
