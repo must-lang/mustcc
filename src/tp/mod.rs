@@ -15,6 +15,11 @@ use crate::{
     error::diagnostic::{Diagnostic, Label},
 };
 
+pub const BUILTIN_TYPES: [&'static str; 13] = [
+    "never", "bool", "order", "u8", "u16", "u32", "u64", "usize", "i8", "i16", "i32", "i64",
+    "isize",
+];
+
 /// The abstract type representation.
 ///
 /// Use [Type::view] to see the actual type.

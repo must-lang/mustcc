@@ -4,13 +4,16 @@ use std::{
 };
 
 use crate::{
-    common::{NodeID, Path},
+    common::{NodeID, Path, Position},
     error::{InternalError, context::Context, diagnostic::Diagnostic},
-    mod_tree::{ScopeInfo, scope::Symbol},
+    mod_tree::{
+        ScopeInfo,
+        scope::{Binding, Symbol},
+    },
     parser::ast::{RTypeData, RTypeNode},
     resolve::{ast::SymRef, error},
     symtable::{SymInfo, SymTable, TypeInfo},
-    tp::{TVar, TVarKind, Type},
+    tp::{BUILTIN_TYPES, TVar, TVarKind, Type},
 };
 
 pub struct Env {
@@ -177,14 +180,36 @@ impl Env {
         Ok(SymRef::Global(id))
     }
 
-    pub(crate) fn init(scope_info: ScopeInfo, node_tvar_map: HashMap<NodeID, TVar>) -> Self {
+    pub(crate) fn init(
+        mut scope_info: ScopeInfo,
+        mut node_tvar_map: HashMap<NodeID, TVar>,
+    ) -> Self {
+        let ref mut items = scope_info.get_mut(NodeID::of_root()).unwrap().items;
+        let mut tvar_map = HashMap::new();
+        for b_tp in BUILTIN_TYPES {
+            let binding = Binding {
+                vis: crate::common::Visibility::Public,
+                kind: crate::mod_tree::scope::Kind::BuiltinType,
+                sym: Symbol::Local(NodeID::of_builtin_type(b_tp)),
+            };
+            items.insert(b_tp.into(), binding);
+            node_tvar_map.insert(NodeID::of_builtin_type(b_tp), TVar::of_builtin(b_tp));
+            let t_info = TypeInfo {
+                name: b_tp.into(),
+                pos: Position::nowhere(),
+                methods: HashMap::new(),
+                kind: crate::symtable::TypeKind::Builtin,
+            };
+            tvar_map.insert(TVar::of_builtin(b_tp), t_info);
+        }
+
         Self {
             current_module: NodeID::of_root(),
             scope_info,
             node_tvar_map,
             local_scopes: vec![],
             node_map: HashMap::new(),
-            tvar_map: HashMap::new(),
+            tvar_map,
         }
     }
 
