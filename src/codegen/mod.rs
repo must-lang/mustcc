@@ -172,11 +172,11 @@ impl<'ctx> Lowerer<'ctx> {
                 }
                 None
             }
-            ast::Expr::Let { id, e1, e2 } => {
+            ast::Expr::Let { id, e1 } => {
                 if let Some(v) = self.lower_expr(b, *e1) {
                     self.variables.insert(id, v);
                 }
-                self.lower_expr(b, *e2)
+                None
             }
             ast::Expr::While { pred, block } => todo!(),
             ast::Expr::Value(value) => self.tr_value(b, value),
@@ -200,10 +200,6 @@ impl<'ctx> Lowerer<'ctx> {
                 let v = b.ins().load(tp.to_cl_type(), MemFlags::new(), p, offset);
                 Some(v)
             }
-            ast::Expr::Ignore { e1, e2 } => {
-                self.lower_expr(b, *e1);
-                self.lower_expr(b, *e2)
-            }
             ast::Expr::Builtin { name, mut args } => match name.as_str() {
                 "iadd" => {
                     let y = args.pop().unwrap();
@@ -215,6 +211,12 @@ impl<'ctx> Lowerer<'ctx> {
                 }
                 s => panic!("unknown instruction {}", s),
             },
+            ast::Expr::Block { exprs, last_expr } => {
+                for expr in exprs {
+                    self.lower_expr(b, expr);
+                }
+                self.lower_expr(b, *last_expr)
+            }
         }
     }
 

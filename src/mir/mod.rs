@@ -107,8 +107,6 @@ fn tr_func(st: &SymTable, f: in_a::Func) -> Result<out_a::Func, InternalError> {
 
     let body = tr_expr(&mut env, &mut var_needs_stack, st, f.body)?;
 
-    let body = deblock(body, None);
-
     let func = out_a::Func {
         id: f.id,
         args,
@@ -117,114 +115,6 @@ fn tr_func(st: &SymTable, f: in_a::Func) -> Result<out_a::Func, InternalError> {
         var_needs_stack,
     };
     Ok(func)
-}
-
-fn deblock(e: out_a::Expr, acc: Option<out_a::Expr>) -> out_a::Expr {
-    match e {
-        ast::Expr::Block {
-            exprs,
-            last_expr,
-            block_tp,
-        } => {
-            let last_expr = deblock(*last_expr, acc);
-            exprs
-                .into_iter()
-                .rfold(last_expr, |acc, e| deblock(e, Some(acc)))
-        }
-        ast::Expr::Tuple { fields, layout } => ast::Expr::Tuple { fields, layout },
-        ast::Expr::FunCall {
-            expr,
-            args,
-            args_tp,
-            ret_tp,
-        } => {
-            let e1 = ast::Expr::FunCall {
-                expr,
-                args,
-                args_tp,
-                ret_tp,
-            };
-            if let Some(e2) = acc {
-                out_a::Expr::Ignore {
-                    e1: Box::new(e1),
-                    e2: Box::new(e2),
-                }
-            } else {
-                e1
-            }
-        }
-        ast::Expr::FieldAccess {
-            object,
-            field_id,
-            struct_layout,
-            element_layout,
-        } => {
-            let e1 = ast::Expr::FieldAccess {
-                object,
-                field_id,
-                struct_layout,
-                element_layout,
-            };
-            if let Some(e2) = acc {
-                out_a::Expr::Ignore {
-                    e1: Box::new(e1),
-                    e2: Box::new(e2),
-                }
-            } else {
-                e1
-            }
-        }
-        ast::Expr::Return { expr, ret_tp } => ast::Expr::Return { expr, ret_tp },
-        ast::Expr::Let {
-            id,
-            layout,
-            is_mut,
-            expr,
-        } => ast::Expr::LetIn {
-            id,
-            layout,
-            is_mut,
-            expr,
-            e2: Box::new(acc.unwrap()),
-        },
-        ast::Expr::LetIn {
-            id,
-            layout,
-            is_mut,
-            expr,
-            e2,
-        } => todo!(),
-        ast::Expr::Assign {
-            lval,
-            rval,
-            assign_tp,
-        } => out_a::Expr::Assign {
-            lval: Box::new(deblock(*lval, None)),
-            rval: Box::new(deblock(*rval, None)),
-            assign_tp,
-        },
-        ast::Expr::Ref { var, tp } => todo!(),
-        ast::Expr::RefMut { var, tp } => todo!(),
-        ast::Expr::Deref { expr, in_tp } => todo!(),
-        ast::Expr::ArrayInitRepeat(expr, _, layout) => todo!(),
-        ast::Expr::ArrayInitExact(exprs, layout) => todo!(),
-        ast::Expr::While { pred, block } => todo!(),
-        ast::Expr::IndexAccess {
-            arr,
-            index,
-            arr_layout,
-            elem_layout,
-        } => todo!(),
-        ast::Expr::StringLit(_, layout) => todo!(),
-        ast::Expr::Char(_) => todo!(),
-        ast::Expr::NumLit(n, tp) => ast::Expr::NumLit(n, tp),
-        ast::Expr::Var(var_ref) => ast::Expr::Var(var_ref),
-        ast::Expr::Ignore { e1, e2 } => todo!(),
-        ast::Expr::Builtin(name, exprs) => {
-            let exprs = exprs.into_iter().map(|e| deblock(e, None)).collect();
-            ast::Expr::Builtin(name, exprs)
-        }
-    }
 }
 
 fn tr_expr(

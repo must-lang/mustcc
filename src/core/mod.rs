@@ -49,22 +49,22 @@ fn tr_expr(env: &mut Env, e: in_a::Expr) -> out_a::Expr {
             let var = out_a::VarRef::Local(id);
             let s_v = ast::Value::Var(var);
             let e = out_a::Expr::Value(s_v.clone());
-            let e2 = fields.into_iter().rfold(e, |acc, (field, layout)| {
+            let mut exprs = vec![out_a::Expr::Let {
+                id,
+                e1: Box::new(ss),
+            }];
+            for (field, layout) in fields {
                 let field = tr_expr(env, field);
                 let st = out_a::Expr::Store {
                     ptr: Box::new(ast::Expr::Value(s_v.clone())),
                     val: Box::new(field),
                     offset: layout.offset as i32,
                 };
-                out_a::Expr::Ignore {
-                    e1: Box::new(st),
-                    e2: Box::new(acc),
-                }
-            });
-            out_a::Expr::Let {
-                id,
-                e1: Box::new(ss),
-                e2: Box::new(e2),
+                exprs.push(st);
+            }
+            out_a::Expr::Block {
+                exprs,
+                last_expr: Box::new(e),
             }
         }
         in_a::Expr::FunCall {
@@ -118,19 +118,20 @@ fn tr_expr(env: &mut Env, e: in_a::Expr) -> out_a::Expr {
             exprs,
             last_expr,
             block_tp,
-        } => unreachable!(),
+        } => {
+            let exprs = exprs.into_iter().map(|e| tr_expr(env, e)).collect();
+            let last_expr = tr_expr(env, *last_expr);
+            out_a::Expr::Block {
+                exprs,
+                last_expr: Box::new(last_expr),
+            }
+        }
         in_a::Expr::Return { expr, ret_tp } => {
             let expr = tr_expr(env, *expr);
             out_a::Expr::Return {
                 expr: Box::new(expr),
             }
         }
-        in_a::Expr::Let {
-            id,
-            layout,
-            is_mut,
-            expr,
-        } => unreachable!(),
         in_a::Expr::Assign {
             lval,
             rval,
@@ -159,29 +160,17 @@ fn tr_expr(env: &mut Env, e: in_a::Expr) -> out_a::Expr {
                 out_a::Expr::Value(ast::Value::Var(ast::VarRef::Global(id)))
             }
         },
-        in_a::Expr::LetIn {
+        in_a::Expr::Let {
             id,
             layout,
             is_mut,
             expr,
-            e2,
         } => {
             let e1 = tr_expr(env, *expr);
             let id = env.add_var(id);
-            let e2 = tr_expr(env, *e2);
-
             out_a::Expr::Let {
                 id,
                 e1: Box::new(e1),
-                e2: Box::new(e2),
-            }
-        }
-        in_a::Expr::Ignore { e1, e2 } => {
-            let e1 = tr_expr(env, *e1);
-            let e2 = tr_expr(env, *e2);
-            out_a::Expr::Ignore {
-                e1: Box::new(e1),
-                e2: Box::new(e2),
             }
         }
         in_a::Expr::Builtin(name, exprs) => {
