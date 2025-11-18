@@ -157,11 +157,6 @@ fn tr_enum(
         };
         cons_id += 1;
     }
-    let methods = e
-        .methods
-        .iter()
-        .map(|func| (func.name.name_str(), func.id))
-        .collect();
 
     let sym_info = SymInfo::build(e.name.data.clone(), e.pos.clone(), SymKind::Enum(tvar))
         .with_attributes(e.attributes);
@@ -175,26 +170,12 @@ fn tr_enum(
         name: e.name.name_str(),
         pos: e.pos.clone(),
         kind,
-        methods,
     };
     env.add_type_info(tvar, type_info);
 
     env.add_sym_info(e.id, sym_info);
     env.leave_scope();
-    Ok(for mut method in e.methods {
-        method.type_params = params
-            .keys()
-            .map(|k| Ident {
-                data: k.clone(),
-                pos: e.pos.clone(),
-            })
-            .chain(method.type_params.into_iter())
-            .collect();
-        let func = tr_func(ctx, env, method, Some((tvar, e.name.data.clone())))?;
-        if let Some(func) = func {
-            functions.push(func);
-        }
-    })
+    Ok(())
 }
 
 fn tr_struct(
@@ -223,11 +204,6 @@ fn tr_struct(
             None => (),
         }
     }
-    let methods = s
-        .methods
-        .iter()
-        .map(|func| (func.name.name_str(), func.id))
-        .collect();
 
     let sym_info = SymInfo::build(s.name.data.clone(), s.pos.clone(), SymKind::Struct(tvar))
         .with_attributes(s.attributes);
@@ -242,26 +218,12 @@ fn tr_struct(
     let type_info = TypeInfo {
         name: s.name.name_str(),
         pos: s.pos.clone(),
-        methods,
         kind,
     };
     env.add_type_info(tvar, type_info);
 
     env.leave_scope();
-    Ok(for mut method in s.methods {
-        method.type_params = params
-            .keys()
-            .map(|k| Ident {
-                data: k.clone(),
-                pos: s.pos.clone(),
-            })
-            .chain(method.type_params.into_iter())
-            .collect();
-        let func = tr_func(ctx, env, method, Some((tvar, s.name.data.clone())))?;
-        if let Some(func) = func {
-            functions.push(func);
-        }
-    })
+    Ok(())
 }
 
 fn tr_func(

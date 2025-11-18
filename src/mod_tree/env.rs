@@ -55,9 +55,7 @@ impl Env {
 
         let id = match mod_info.kind {
             ScopeKind::Root => panic!("cannot leave from root"),
-            ScopeKind::Module { parent, .. }
-            | ScopeKind::Struct { parent, .. }
-            | ScopeKind::Enum { parent, .. } => parent,
+            ScopeKind::Module { parent, .. } | ScopeKind::Enum { parent, .. } => parent,
         };
 
         self.current_namespace_id = id;

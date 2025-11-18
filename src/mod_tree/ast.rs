@@ -55,7 +55,6 @@ pub struct Struct {
     pub type_params: Vec<Ident>,
     pub fields: Vec<(Ident, RTypeNode)>,
     pub pos: Position,
-    pub methods: Vec<Func>,
 }
 
 #[derive(Debug)]
@@ -67,7 +66,6 @@ pub struct Enum {
     pub type_params: Vec<Ident>,
     pub constructors: Vec<Constructor>,
     pub pos: Position,
-    pub methods: Vec<Func>,
 }
 
 // ==== Others =================================================================

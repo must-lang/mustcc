@@ -15,9 +15,7 @@ impl Scope {
     pub fn parent(&self) -> Option<NodeID> {
         match self.kind {
             ScopeKind::Root => None,
-            ScopeKind::Module { parent, .. }
-            | ScopeKind::Struct { parent, .. }
-            | ScopeKind::Enum { parent, .. } => Some(parent),
+            ScopeKind::Module { parent, .. } | ScopeKind::Enum { parent, .. } => Some(parent),
         }
     }
 }
@@ -31,9 +29,6 @@ pub enum ScopeKind {
         parent: NodeID,
     },
     Enum {
-        parent: NodeID,
-    },
-    Struct {
         parent: NodeID,
     },
 }

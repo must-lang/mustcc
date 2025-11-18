@@ -237,7 +237,6 @@ pub enum SymKind {
 pub struct TypeInfo {
     pub name: String,
     pub pos: Position,
-    pub methods: HashMap<String, NodeID>,
     pub kind: TypeKind,
 }
 
