@@ -197,7 +197,6 @@ impl Env {
             let t_info = TypeInfo {
                 name: b_tp.into(),
                 pos: Position::nowhere(),
-                methods: HashMap::new(),
                 kind: crate::symtable::TypeKind::Builtin,
             };
             tvar_map.insert(TVar::of_builtin(b_tp), t_info);

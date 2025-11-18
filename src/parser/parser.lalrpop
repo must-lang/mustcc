@@ -188,13 +188,9 @@ Struct: Struct = {
     "{"
         <fields: CommaSep<FieldDecl>>
     "}"
-    <methods: ("with" "{"
-        <Func*>
-    "}")?>
     <end: @R>
      => {
         let pos = pg.make(start, end);
-        let methods = methods.unwrap_or(vec![]);
         let type_params = type_params.unwrap_or(vec![]);
         Struct {
             attributes,
@@ -203,7 +199,6 @@ Struct: Struct = {
             type_params,
             fields,
             pos,
-            methods,
         }
     }
 }
@@ -216,13 +211,9 @@ Enum: Enum = {
     "{"
         <constructors: CommaSep<Constructor>>
     "}"
-    <methods: ("with" "{"
-        <Func*>
-    "}")?>
     <end: @R>
      => {
         let pos = pg.make(start, end);
-        let methods = methods.unwrap_or(vec![]);
         let type_params = type_params.unwrap_or(vec![]);
         Enum {
             attributes,
@@ -231,7 +222,6 @@ Enum: Enum = {
             type_params,
             constructors,
             pos,
-            methods,
         }
     }
 }

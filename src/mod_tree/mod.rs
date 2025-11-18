@@ -235,18 +235,6 @@ fn tr_enum(
         }
     }
 
-    let mut methods = vec![];
-
-    for func in it.methods {
-        match tr_func(env, func) {
-            Ok(f) => methods.push(f),
-            Err(diag) => {
-                ctx.report(diag);
-                continue;
-            }
-        }
-    }
-
     env.leave();
 
     let it = out_a::Enum {
@@ -257,7 +245,6 @@ fn tr_enum(
         type_params: it.type_params,
         constructors,
         pos: it.pos,
-        methods,
     };
 
     Ok(Some(it))
@@ -320,36 +307,10 @@ fn tr_struct(
         sym: scope::Symbol::Local(id),
     };
 
-    let mod_info = Scope {
-        items: BTreeMap::new(),
-        kind: ScopeKind::Struct {
-            parent: env.get_current_module_id(),
-        },
-    };
-
     if let Err(diag) = env.add_item(it.name.clone(), binding) {
         ctx.report(diag);
         return Ok(None);
     }
-
-    // register this new module in mod tree
-    env.add_mod_info(id, mod_info);
-
-    env.enter(it.name.name_str());
-
-    let mut methods = vec![];
-
-    for func in it.methods {
-        match tr_func(env, func) {
-            Ok(f) => methods.push(f),
-            Err(diag) => {
-                ctx.report(diag);
-                continue;
-            }
-        }
-    }
-
-    env.leave();
 
     let it = out_a::Struct {
         attributes: it.attributes,
@@ -359,7 +320,6 @@ fn tr_struct(
         type_params: it.type_params,
         pos: it.pos,
         fields: it.fields,
-        methods,
     };
 
     Ok(Some(it))

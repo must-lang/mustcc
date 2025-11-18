@@ -110,8 +110,6 @@ pub struct Func {
 /// @attributes
 /// (pub) struct Name<types> {
 ///     field_name: type
-/// } with {
-///     fn new() -> Name { ... }
 /// }
 /// ```
 #[derive(Debug)]
@@ -122,7 +120,6 @@ pub struct Struct {
     pub type_params: Vec<Ident>,
     pub fields: Vec<(Ident, RTypeNode)>,
     pub pos: Position,
-    pub methods: Vec<Func>,
 }
 
 /// Declaration of enum type.
@@ -132,8 +129,6 @@ pub struct Struct {
 /// (pub) enum Name<types> {
 ///     Cons1(arg1, arg2, arg3),
 ///     Cons2(arg4, arg5),
-/// } with {
-///     fn new() -> name { ... }
 /// }
 /// ```
 #[derive(Debug)]
@@ -144,7 +139,6 @@ pub struct Enum {
     pub type_params: Vec<Ident>,
     pub constructors: Vec<Constructor>,
     pub pos: Position,
-    pub methods: Vec<Func>,
 }
 
 // ==== Others =================================================================
