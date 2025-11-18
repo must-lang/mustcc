@@ -223,9 +223,145 @@ fn tr_func(
 - Easier to debug
 
 **What to Move**:
-- `deblock` → Move to typecheck stage (normalize AST early)
+- `deblock` → **See detailed proposal below** 
 - `get_layout` → Delete (use LayoutCache instead)
 - Layout computation → Done once after typecheck
+
+#### Detailed Proposal: Handling `deblock` Without Complicating Typecheck
+
+**The Problem**: The `deblock` function (lines 122-228) transforms Block expressions into a flattened sequence of LetIn/Ignore expressions. Moving this directly to typecheck would complicate the type inference algorithm.
+
+**Better Solution - Create a Separate Normalization Pass**:
+
+Instead of adding `deblock` to typecheck OR keeping it in MIR, create a lightweight post-typecheck normalization stage:
+
+```rust
+// src/normalize/mod.rs - NEW MODULE (between typecheck and MIR)
+pub fn normalize(prog: typecheck::ast::Program) -> typecheck::ast::Program {
+    let functions = prog.functions
+        .into_iter()
+        .map(normalize_func)
+        .collect();
+    
+    typecheck::ast::Program {
+        functions,
+        sym_table: prog.sym_table,
+    }
+}
+
+fn normalize_func(func: typecheck::ast::Func) -> typecheck::ast::Func {
+    typecheck::ast::Func {
+        body: deblock_expr(func.body),
+        ..func
+    }
+}
+
+fn deblock_expr(expr: typecheck::ast::Expr) -> typecheck::ast::Expr {
+    // Same logic as current deblock, but operates on typecheck AST
+    // Converts Block { exprs: [e1, e2], last: e3 } 
+    // Into:     Sequence(e1, Sequence(e2, e3))
+    match expr {
+        Expr::Block { exprs, last_expr, block_tp } => {
+            // Flatten blocks into sequences
+            let result = exprs.into_iter().rfold(*last_expr, |acc, e| {
+                Expr::Sequence {
+                    first: Box::new(deblock_expr(e)),
+                    second: Box::new(acc),
+                }
+            });
+            deblock_expr(result)
+        }
+        Expr::Let { name, tp, is_mut, expr } => {
+            // Standalone Let becomes a LetIn when followed by another expr
+            // This transformation happens in context of parent
+            expr  // For now, pass through; parent will handle
+        }
+        // Recursively normalize other expressions
+        other => normalize_children(other)
+    }
+}
+```
+
+**Why This is Better**:
+
+1. **Separation of Concerns**: 
+   - Typecheck focuses on type correctness
+   - Normalize focuses on AST structure
+   - MIR focuses on lowering to physical representation
+
+2. **Simpler Each Stage**:
+   - Typecheck doesn't need deblock logic
+   - MIR doesn't need deblock logic
+   - Normalize is <100 lines, single purpose
+
+3. **Pipeline Becomes**:
+   ```
+   Parser → ModTree → Resolve → TypeCheck → Normalize → MIR → Core → Codegen
+   ```
+
+4. **Can Add Other Normalizations** without touching typecheck:
+   - Desugar certain constructs
+   - Optimize constant expressions
+   - Eliminate dead code after type analysis
+
+5. **Testing is Easier**: Test normalize independently
+
+**Alternative - Keep in MIR but Separate**:
+
+If you prefer not to add a new stage, another option is to keep `deblock` in MIR but make it operate on typecheck AST before translation:
+
+```rust
+// src/mir/mod.rs
+pub fn translate(prog: in_a::Program, layouts: &LayoutCache) -> Result<out_a::Program, InternalError> {
+    // Normalize typecheck AST first
+    let prog = normalize_typecheck_ast(prog);
+    
+    // Then translate (now simpler since AST is normalized)
+    let functions = prog.functions
+        .into_iter()
+        .map(|f| tr_func_normalized(&prog.symbols, layouts, f))
+        .collect::<Result<_, _>>()?;
+    
+    out_a::Program {
+        symbols: prog.symbols.into_mir_symbols(),
+        functions,
+    }
+}
+
+fn normalize_typecheck_ast(prog: in_a::Program) -> in_a::Program {
+    // Operates on typecheck::ast, not mir::ast
+    // Returns modified typecheck::ast
+    // Simpler because types are already present
+}
+```
+
+**Recommendation**: I suggest the separate normalization pass because:
+- It's cleaner architecturally
+- Other compilers (Rust, GHC) use similar multi-stage approaches
+- Makes each stage easier to understand and test
+- Only ~100 lines of code
+
+**Migration Path**:
+1. Add `Sequence` variant to typecheck AST:
+   ```rust
+   // src/typecheck/ast.rs
+   pub enum Expr {
+       // ... existing variants ...
+       Sequence {
+           first: Box<Expr>,
+           second: Box<Expr>,
+       },
+   }
+   ```
+2. Create `src/normalize/mod.rs` with deblock logic
+3. Update driver.rs to call normalize between typecheck and MIR:
+   ```rust
+   let prog = typecheck::translate(&mut ctx, prog)?;
+   let prog = normalize::normalize(prog);  // NEW
+   let prog = mir::translate(prog)?;
+   ```
+4. Simplify MIR to expect normalized input (remove deblock function)
+5. Test that output is identical
 
 ### Phase 3: Unify Type Representations (Medium Priority)
 
