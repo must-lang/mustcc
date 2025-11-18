@@ -465,7 +465,7 @@ fn get_layout(st: &SymTable, tp: crate::tp::Type) -> out_a::Layout {
                 None => {
                     let info = st.find_type_info(tvar);
                     match &info.kind {
-                        crate::symtable::TypeKind::Builtin(_) => todo!(),
+                        crate::symtable::TypeKind::Builtin => todo!(),
                         crate::symtable::TypeKind::Struct {
                             params,
                             fields: field_map,

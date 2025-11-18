@@ -17,7 +17,7 @@ pub fn calculate_size(
     for tvar in tvar_order {
         let info = tvar_map.get(tvar).unwrap();
         let size = match &info.kind {
-            TypeKind::Builtin(str) => tvar.builtin_size().unwrap(),
+            TypeKind::Builtin => tvar.builtin_size().unwrap(),
             TypeKind::Struct { params, fields } => {
                 let mut size = 0;
                 for (_, f) in fields {

@@ -1,12 +1,6 @@
 
-@builtin("never")
-pub enum never {}
-
-@builtin("i32")
-pub struct i32 {} with {
-    pub fn add(self, other: i32) -> i32 {
-        @iadd(self, other)
-    }
+pub fn add(lhs: i32, rhs: i32) -> i32 {
+    @iadd(lhs, rhs)
 }
 
 struct S {
@@ -19,7 +13,7 @@ struct S {
 fn main() -> i32 {
     let x = 42;
     let y = f(x, 13, g(s(), 69));
-    y.add(x)
+    add(x, y)
 }
 
 fn g(x: i32, z: i32) -> i32 {

@@ -1,6 +1,6 @@
 use std::{hash::Hash, num::NonZeroUsize};
 
-use crate::mir;
+use crate::{mir, tp::BUILTIN_TYPES};
 
 static mut COUNTER: usize = 64;
 
@@ -88,7 +88,7 @@ impl TVar {
 
     pub(crate) fn builtin_size(&self) -> Option<usize> {
         let size = if self.id < 13 {
-            match BUILTIN_TO_NAME[self.id] {
+            match BUILTIN_TYPES[self.id] {
                 "never" => 42,
                 "bool" => 1,
                 "order" => 1,
@@ -112,7 +112,7 @@ impl TVar {
 
     pub fn builtin_as_mir_type(&self) -> Option<mir::ast::Type> {
         let tp = if self.id < 13 {
-            match BUILTIN_TO_NAME[self.id] {
+            match BUILTIN_TYPES[self.id] {
                 "never" => todo!(),
                 "bool" => todo!(),
                 "order" => todo!(),
@@ -134,8 +134,3 @@ impl TVar {
         Some(tp)
     }
 }
-
-const BUILTIN_TO_NAME: [&'static str; 13] = [
-    "never", "bool", "order", "u8", "u16", "u32", "u64", "usize", "i8", "i16", "i32", "i64",
-    "isize",
-];

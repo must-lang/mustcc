@@ -60,6 +60,7 @@ pub enum Kind {
     Struct,
     Enum,
     Cons,
+    BuiltinType,
 }
 
 #[derive(Debug, Clone)]

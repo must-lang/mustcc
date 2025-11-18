@@ -206,19 +206,8 @@ impl SymInfo {
 
     /// Set symbol flags according to given attributes.
     pub(crate) fn with_attributes(mut self, attributes: Vec<RAttribute>) -> SymInfo {
-        for mut attr in attributes {
+        for attr in attributes {
             match attr.name.data.as_str() {
-                "builtin" => match attr.args.len().cmp(&1) {
-                    std::cmp::Ordering::Equal => unsafe {
-                        let name = attr.args.pop().unwrap_unchecked();
-                        self.builtin_name = Some(name);
-                        self.is_extern = true;
-                    },
-                    std::cmp::Ordering::Less => {
-                        panic!("expected one argument for attribute `builtin`")
-                    }
-                    std::cmp::Ordering::Greater => panic!("unexpected argument for `builtin`"),
-                },
                 "extern" => self.is_extern = true,
                 "no_mangle" => self.mangle = false,
                 _ => continue,
@@ -254,7 +243,7 @@ pub struct TypeInfo {
 
 #[derive(Debug)]
 pub enum TypeKind {
-    Builtin(String),
+    Builtin,
     Struct {
         params: HashSet<TVar>,
         fields: HashMap<String, Type>,

@@ -90,11 +90,11 @@ impl ScopeInfo {
                         return Err(error::cannot_import_from(&name.pos, name.data.clone())
                             .with_note(format!("{} is a function", name.data)));
                     }
-
                     Kind::Cons => {
                         return Err(error::cannot_import_from(&name.pos, name.data.clone())
                             .with_note(format!("{} is an enum constructor", name.data)));
                     }
+                    Kind::BuiltinType => unreachable!(),
                 };
                 self.find_path(*id, path, &mut private_guard)
             }

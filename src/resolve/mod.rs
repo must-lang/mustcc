@@ -166,13 +166,9 @@ fn tr_enum(
     let sym_info = SymInfo::build(e.name.data.clone(), e.pos.clone(), SymKind::Enum(tvar))
         .with_attributes(e.attributes);
 
-    let kind = if let Some(ref s) = sym_info.builtin_name {
-        TypeKind::Builtin(s.clone())
-    } else {
-        TypeKind::Enum {
-            params: params.values().map(|tv| *tv).collect(),
-            constructors,
-        }
+    let kind = TypeKind::Enum {
+        params: params.values().map(|tv| *tv).collect(),
+        constructors,
     };
 
     let type_info = TypeInfo {
@@ -236,13 +232,9 @@ fn tr_struct(
     let sym_info = SymInfo::build(s.name.data.clone(), s.pos.clone(), SymKind::Struct(tvar))
         .with_attributes(s.attributes);
 
-    let kind = if let Some(ref s) = sym_info.builtin_name {
-        TypeKind::Builtin(s.clone())
-    } else {
-        TypeKind::Struct {
-            params: params.values().map(|tv| *tv).collect(),
-            fields,
-        }
+    let kind = TypeKind::Struct {
+        params: params.values().map(|tv| *tv).collect(),
+        fields,
     };
 
     env.add_sym_info(s.id, sym_info);
