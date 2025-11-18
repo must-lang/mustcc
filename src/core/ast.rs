@@ -118,11 +118,10 @@ pub enum Expr {
     Let {
         id: VarID,
         e1: Box<Expr>,
-        e2: Box<Expr>,
     },
-    Ignore {
-        e1: Box<Expr>,
-        e2: Box<Expr>,
+    Block {
+        exprs: Vec<Expr>,
+        last_expr: Box<Expr>,
     },
     StackSlot {
         size: u32,

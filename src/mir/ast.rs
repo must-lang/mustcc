@@ -142,17 +142,6 @@ pub enum Expr {
         is_mut: bool,
         expr: Box<Expr>,
     },
-    LetIn {
-        id: VarID,
-        layout: Layout,
-        is_mut: bool,
-        expr: Box<Expr>,
-        e2: Box<Expr>,
-    },
-    Ignore {
-        e1: Box<Expr>,
-        e2: Box<Expr>,
-    },
     Assign {
         lval: Box<Expr>,
         rval: Box<Expr>,
