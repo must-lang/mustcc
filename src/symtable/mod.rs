@@ -86,7 +86,9 @@ impl SymTable {
                         let mut curr_offset = 0;
                         for (_, tp) in v {
                             let layout = self.get_layout(tp);
-                            // TODO: align size with layout.align
+                            // Align curr_offset to layout.align
+                            let align_mask = (1 << layout.align) - 1;
+                            curr_offset = (curr_offset + align_mask) & !align_mask;
                             let total_size = layout.size;
                             layouts.push((layout, curr_offset as i32));
                             curr_offset += total_size;
