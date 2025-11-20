@@ -196,13 +196,16 @@ fn tr_struct(
         params.insert(name, tv);
     }
 
+    let mut field_id = 0;
+
     for (name, tp) in s.fields {
         let tp = env.resolve_type(ctx, tp)?;
         let name = name.data;
-        match fields.insert(name, tp) {
+        match fields.insert(name, (field_id, tp)) {
             Some(_) => panic!("field already defined"),
             None => (),
         }
+        field_id += 1;
     }
 
     let sym_info = SymInfo::build(s.name.data.clone(), s.pos.clone(), SymKind::Struct(tvar))

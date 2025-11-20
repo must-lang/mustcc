@@ -1,12 +1,16 @@
 use std::collections::{HashMap, HashSet};
 
 mod error;
+pub mod layout;
 mod type_sort;
 
 use crate::{
     common::{NodeID, Position, RAttribute},
     error::context::Context,
-    symtable::type_sort::{calculate_size, make_dep_tree, topo_sort},
+    symtable::{
+        layout::{Layout, LayoutKind},
+        type_sort::{make_dep_tree, topo_sort},
+    },
     tp::{TVar, Type, TypeView},
 };
 
@@ -14,8 +18,6 @@ use crate::{
 pub struct SymTable {
     node_map: HashMap<NodeID, SymInfo>,
     tvar_map: HashMap<TVar, TypeInfo>,
-    tvar_order: Vec<TVar>,
-    tvar_size: HashMap<TVar, usize>,
 }
 
 impl SymTable {
@@ -25,24 +27,12 @@ impl SymTable {
         tvar_map: HashMap<TVar, TypeInfo>,
     ) -> SymTable {
         let dep_tree: HashMap<TVar, HashSet<TVar>> = make_dep_tree(&tvar_map, &node_map);
-        let (tvar_order, cyclic) = topo_sort(dep_tree);
+        let (_, cyclic) = topo_sort(dep_tree);
         for tv in cyclic {
             let info = tvar_map.get(&tv).unwrap();
             ctx.report(error::resursive_types(&info.pos));
         }
-        let tvar_size = calculate_size(ctx, &tvar_map, &node_map, &tvar_order);
-        let st = Self {
-            node_map,
-            tvar_map,
-            tvar_order,
-            tvar_size,
-        };
-        st.check_sizes(ctx);
-        st
-    }
-
-    pub fn get_type_order(&self) -> &Vec<TVar> {
-        &self.tvar_order
+        Self { node_map, tvar_map }
     }
 
     pub fn get_items(&self) -> &HashMap<NodeID, SymInfo> {
@@ -53,103 +43,12 @@ impl SymTable {
         self.node_map
     }
 
-    fn check_sizes(&self, ctx: &mut Context) {
-        for (_, sym) in &self.node_map {
-            match &sym.kind {
-                SymKind::Func { params, args, ret } => {
-                    for arg in args {
-                        match self.sizeof(arg) {
-                            TypeSize::Sized(_) => (),
-                            TypeSize::Unknown => (),
-                            TypeSize::Unsized => {
-                                ctx.report(error::unsized_type(&sym.pos));
-                            }
-                            TypeSize::NotUnified => panic!(),
-                        }
-                    }
-                    match self.sizeof(ret) {
-                        TypeSize::Sized(_) => (),
-                        TypeSize::Unknown => (),
-                        TypeSize::Unsized => {
-                            ctx.report(error::unsized_type(&sym.pos));
-                        }
-                        TypeSize::NotUnified => panic!(),
-                    }
-                }
-                SymKind::Struct(tvar) => (),
-                SymKind::Enum(tvar) => (),
-                SymKind::EnumCons { id, args, parent } => {
-                    for arg in args {
-                        match self.sizeof(arg) {
-                            TypeSize::Sized(_) => (),
-                            TypeSize::Unknown => (),
-                            TypeSize::Unsized => {
-                                ctx.report(error::unsized_type(&sym.pos));
-                            }
-                            TypeSize::NotUnified => panic!(),
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     pub(crate) fn find_sym_info(&self, node_id: NodeID) -> &SymInfo {
         self.node_map.get(&node_id).unwrap()
     }
 
     pub(crate) fn find_type_info(&self, tvar: TVar) -> &TypeInfo {
         self.tvar_map.get(&tvar).unwrap()
-    }
-
-    pub fn sizeof(&self, tp: &Type) -> TypeSize {
-        match tp.view() {
-            TypeView::Unknown => TypeSize::Unknown,
-            TypeView::UVar(uvar) | TypeView::NumericUVar(uvar) => TypeSize::NotUnified,
-            TypeView::TypeApp(tvar, _, _) | TypeView::Var(tvar) | TypeView::NamedVar(tvar, _) => {
-                match self.tvar_size.get(&tvar) {
-                    Some(n) => TypeSize::Sized(*n),
-                    None => TypeSize::Unsized,
-                }
-            }
-            TypeView::Tuple(items) => {
-                let mut size = 0;
-                for tp in items {
-                    match self.sizeof(&tp) {
-                        TypeSize::Sized(n) => size += n,
-                        TypeSize::Unsized => return TypeSize::Unsized,
-                        TypeSize::Unknown => return TypeSize::Unknown,
-                        TypeSize::NotUnified => return TypeSize::NotUnified,
-                    }
-                }
-                TypeSize::Sized(size)
-            }
-            TypeView::Array(size, tp) => match self.sizeof(&tp) {
-                TypeSize::Sized(n) => TypeSize::Sized(n * size),
-                TypeSize::Unsized => TypeSize::Unsized,
-                TypeSize::Unknown => TypeSize::Unknown,
-                TypeSize::NotUnified => TypeSize::NotUnified,
-            },
-            TypeView::Fun(items, ret) => {
-                let mut size = 0;
-                for tp in items {
-                    match self.sizeof(&tp) {
-                        TypeSize::Sized(n) => size += n,
-                        TypeSize::Unsized => return TypeSize::Unsized,
-                        TypeSize::Unknown => return TypeSize::Unknown,
-                        TypeSize::NotUnified => return TypeSize::NotUnified,
-                    }
-                }
-                match self.sizeof(&ret) {
-                    TypeSize::Sized(n) => size += n,
-                    TypeSize::Unsized => return TypeSize::Unsized,
-                    TypeSize::Unknown => return TypeSize::Unknown,
-                    TypeSize::NotUnified => return TypeSize::NotUnified,
-                }
-                TypeSize::Sized(size)
-            }
-            TypeView::Ptr(_) | TypeView::MutPtr(_) => TypeSize::Sized(8),
-        }
     }
 
     pub(crate) fn get_builtin_id(&self, name: &str) -> Option<NodeID> {
@@ -162,22 +61,56 @@ impl SymTable {
         }
         None
     }
-}
 
-#[derive(Debug)]
-pub enum TypeSize {
-    Sized(usize),
-    Unsized,
-    Unknown,
-    NotUnified,
-}
-impl TypeSize {
-    pub(crate) fn as_usize(&self) -> usize {
-        match self {
-            TypeSize::Sized(n) => *n,
-            TypeSize::Unsized => panic!(),
-            TypeSize::Unknown => panic!(),
-            TypeSize::NotUnified => panic!(),
+    pub(crate) fn get_layout(&self, tp: &Type) -> Layout {
+        match tp.view() {
+            TypeView::Unknown => todo!(),
+            TypeView::UVar(uvar) => todo!(),
+            TypeView::NumericUVar(uvar) => todo!(),
+            TypeView::NamedVar(tvar, _) | TypeView::Var(tvar) => {
+                let t_info = self.find_type_info(tvar);
+                match &t_info.kind {
+                    TypeKind::Builtin => {
+                        let size = tvar.builtin_size().unwrap();
+                        let tp = tvar.builtin_as_primitive().unwrap();
+                        Layout {
+                            size,
+                            align: 3,
+                            kind: LayoutKind::Primitive(tp),
+                        }
+                    }
+                    TypeKind::Struct { params, fields } => {
+                        let mut v: Vec<_> = fields.into_iter().map(|(_, v)| v).collect();
+                        v.sort_by_key(|(k, _)| k);
+                        let mut layouts = vec![];
+                        let mut curr_offset = 0;
+                        for (_, tp) in v {
+                            let layout = self.get_layout(tp);
+                            // TODO: align size with layout.align
+                            let total_size = layout.size;
+                            layouts.push((layout, curr_offset as i32));
+                            curr_offset += total_size;
+                        }
+                        Layout {
+                            size: curr_offset,
+                            align: 4,
+                            kind: LayoutKind::Struct(layouts),
+                        }
+                    }
+                    TypeKind::Enum {
+                        params,
+                        constructors,
+                    } => todo!(),
+                }
+            }
+            TypeView::Tuple(items) => todo!(),
+            TypeView::Array(_, _) => todo!(),
+            TypeView::Fun(_, _) | TypeView::Ptr(_) | TypeView::MutPtr(_) => Layout {
+                size: 8,
+                align: 3,
+                kind: LayoutKind::Primitive(layout::Type::Tusize),
+            },
+            TypeView::TypeApp(tvar, _, items) => todo!(),
         }
     }
 }
@@ -245,7 +178,7 @@ pub enum TypeKind {
     Builtin,
     Struct {
         params: HashSet<TVar>,
-        fields: HashMap<String, Type>,
+        fields: HashMap<String, (usize, Type)>,
     },
     Enum {
         params: HashSet<TVar>,
