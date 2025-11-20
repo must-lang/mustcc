@@ -1,6 +1,6 @@
 use std::{hash::Hash, num::NonZeroUsize};
 
-use crate::{mir, tp::BUILTIN_TYPES};
+use crate::{mir, symtable::layout::Type, tp::BUILTIN_TYPES};
 
 static mut COUNTER: usize = 64;
 
@@ -86,7 +86,7 @@ impl TVar {
         self.id < 65
     }
 
-    pub(crate) fn builtin_size(&self) -> Option<usize> {
+    pub(crate) fn builtin_size(&self) -> Option<u32> {
         let size = if self.id < 13 {
             match BUILTIN_TYPES[self.id] {
                 "never" => 42,
@@ -110,22 +110,22 @@ impl TVar {
         Some(size)
     }
 
-    pub fn builtin_as_mir_type(&self) -> Option<mir::ast::Type> {
+    pub fn builtin_as_primitive(&self) -> Option<Type> {
         let tp = if self.id < 13 {
             match BUILTIN_TYPES[self.id] {
                 "never" => todo!(),
                 "bool" => todo!(),
                 "order" => todo!(),
-                "u8" => mir::ast::Type::Tu8,
-                "u16" => mir::ast::Type::Tu16,
-                "u32" => mir::ast::Type::Tu32,
-                "u64" => mir::ast::Type::Tu64,
-                "usize" => mir::ast::Type::Tusize,
-                "i8" => mir::ast::Type::Ti8,
-                "i16" => mir::ast::Type::Ti16,
-                "i32" => mir::ast::Type::Ti32,
-                "i64" => mir::ast::Type::Ti64,
-                "isize" => mir::ast::Type::Tisize,
+                "u8" => Type::Tu8,
+                "u16" => Type::Tu16,
+                "u32" => Type::Tu32,
+                "u64" => Type::Tu64,
+                "usize" => Type::Tusize,
+                "i8" => Type::Ti8,
+                "i16" => Type::Ti16,
+                "i32" => Type::Ti32,
+                "i64" => Type::Ti64,
+                "isize" => Type::Tisize,
                 _ => return None,
             }
         } else {

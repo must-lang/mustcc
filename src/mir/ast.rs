@@ -1,55 +1,9 @@
 use std::collections::HashMap;
 
-use crate::common::NodeID;
-
-#[derive(Debug, Clone)]
-pub enum Type {
-    Tu8,
-    Tu16,
-    Tu32,
-    Tu64,
-    Tusize,
-    Ti8,
-    Ti16,
-    Ti32,
-    Ti64,
-    Tisize,
-}
-
-#[derive(Debug, Clone)]
-pub enum TypeLayout {
-    Simple {
-        tp: Type,
-    },
-    Array {
-        elem_layout: Box<Layout>,
-        elems: usize,
-    },
-    Tuple {
-        field_count: usize,
-        fields: Vec<Layout>,
-    },
-}
-
-#[derive(Debug, Clone)]
-pub struct Layout {
-    pub layout: TypeLayout,
-    pub size: usize,
-    pub offset: usize,
-    pub align: usize,
-}
-impl Layout {
-    pub(crate) fn require_stack(&self) -> bool {
-        match &self.layout {
-            TypeLayout::Simple { tp } => false,
-            TypeLayout::Array { elem_layout, elems } => true,
-            TypeLayout::Tuple {
-                field_count,
-                fields,
-            } => true,
-        }
-    }
-}
+use crate::{
+    common::NodeID,
+    symtable::layout::{Layout, Type},
+};
 
 #[derive(Debug)]
 pub struct Program {
@@ -112,7 +66,7 @@ pub enum Expr {
     NumLit(usize, Type),
     StringLit(String, Layout),
     Tuple {
-        fields: Vec<(Expr, Layout)>,
+        fields: Vec<Expr>,
         layout: Layout,
     },
     FunCall {

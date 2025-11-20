@@ -31,7 +31,7 @@ pub enum Expr {
         id: NodeID,
         tp: Type,
     },
-    Tuple(Vec<Expr>, Vec<Type>),
+    Tuple(Vec<Expr>, Type),
     FunCall {
         expr: Box<Expr>,
         args: Vec<Expr>,
@@ -40,7 +40,7 @@ pub enum Expr {
     },
     FieldAccess {
         object: Box<Expr>,
-        field_name: String,
+        field_id: usize,
         struct_tp: Type,
         field_tp: Type,
     },
@@ -67,7 +67,7 @@ pub enum Expr {
     },
     StructCons {
         id: NodeID,
-        initializers: HashMap<String, Expr>,
+        initializers: HashMap<String, (usize, Expr)>,
         tp: Type,
     },
     Assign {

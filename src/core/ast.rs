@@ -2,21 +2,7 @@ use std::collections::HashMap;
 
 use cranelift_codegen::ir::Signature;
 
-use crate::common::NodeID;
-
-#[derive(Debug, Clone)]
-pub enum Type {
-    Tu8,
-    Tu16,
-    Tu32,
-    Tu64,
-    Tusize,
-    Ti8,
-    Ti16,
-    Ti32,
-    Ti64,
-    Tisize,
-}
+use crate::{common::NodeID, symtable::layout::Type};
 
 #[derive(Debug, Clone)]
 pub struct FnSig {

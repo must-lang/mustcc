@@ -8,7 +8,7 @@ mod error;
 
 use crate::error::InternalError;
 use crate::resolve::ast as in_a;
-use crate::symtable::{SymKind, SymTable, TypeKind, TypeSize};
+use crate::symtable::{SymKind, SymTable, TypeKind};
 use crate::tp::{TVar, Type, TypeView, unify};
 use crate::typecheck::env::Env;
 use ast as out_a;
@@ -193,7 +193,7 @@ fn check_expr(
         in_a::ExprData::FieldAccess(expr, field_name) => {
             let tp = env.fresh_uvar(&pos);
             let expr = check_expr(ctx, sym_table, env, *expr, &tp, exp_mut)?;
-            let field_tp = match tp.view() {
+            let (field_id, field_tp) = match tp.view() {
                 TypeView::NamedVar(tvar, _) | TypeView::Var(tvar) => {
                     let type_info = sym_table.find_type_info(tvar);
                     match &type_info.kind {
@@ -220,7 +220,7 @@ fn check_expr(
             }
             out_a::Expr::FieldAccess {
                 object: Box::new(expr),
-                field_name,
+                field_id: *field_id,
                 struct_tp: tp,
                 field_tp: field_tp.clone(),
             }
@@ -337,16 +337,6 @@ fn check_expr(
             if !unify(exp_tp, &in_tp) {
                 ctx.report(error::type_mismatch(pos, exp_tp.clone(), in_tp.clone()));
             }
-            match sym_table.sizeof(&in_tp) {
-                TypeSize::Sized(_) => (),
-                TypeSize::Unsized => {
-                    ctx.report(error::unsized_type(&pos));
-                }
-                TypeSize::Unknown => (),
-                TypeSize::NotUnified => {
-                    ctx.report(error::cannot_infer_type(&pos));
-                }
-            }
             out_a::Expr::Deref {
                 expr: Box::new(expr),
                 in_tp: in_tp,
@@ -372,7 +362,7 @@ fn check_expr(
             if !unify(exp_tp, &tp) {
                 ctx.report(error::type_mismatch(pos, exp_tp.clone(), tp.clone()));
             }
-            out_a::Expr::Tuple(ch_exprs, tps)
+            out_a::Expr::Tuple(ch_exprs, tp)
         }
         in_a::ExprData::String(s) => {
             let size = s.as_bytes().len();
@@ -407,12 +397,12 @@ fn check_expr(
                 .map(|tv| (*tv, env.fresh_uvar(&pos)))
                 .collect();
             let mut initializers = HashMap::new();
-            for (f_name, f_type) in fields {
+            for (f_name, (id, f_type)) in fields {
                 let tp = f_type.substitute(&subst);
                 match items.remove(f_name) {
                     Some(expr) => {
                         let expr = check_expr(ctx, sym_table, env, expr, &tp, false)?;
-                        initializers.insert(f_name.clone(), expr);
+                        initializers.insert(f_name.clone(), (*id, expr));
                     }
                     None => {
                         ctx.report(error::missing_field(pos, f_name.clone(), tp));

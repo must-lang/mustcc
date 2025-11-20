@@ -5,11 +5,13 @@ use std::collections::HashMap;
 use crate::{
     error::InternalError,
     mir::{
-        ast::{TypeLayout, VarID, VarRef},
+        ast::{VarID, VarRef},
         env::Env,
     },
-    symtable::SymTable,
-    tp::Type,
+    symtable::{
+        SymTable,
+        layout::{LayoutKind, Type},
+    },
     typecheck::ast as in_a,
 };
 use ast as out_a;
@@ -42,20 +44,20 @@ fn make_symtable(st: SymTable) -> HashMap<crate::common::NodeID, ast::Symbol> {
                 let mut args = vec![];
                 let mut returns = vec![];
                 for tp in old_args {
-                    let layout = get_layout(&st, tp.clone());
-                    let tp = match layout.layout {
-                        TypeLayout::Simple { tp } => tp,
-                        TypeLayout::Array { .. } | TypeLayout::Tuple { .. } => out_a::Type::Tusize,
+                    let layout = st.get_layout(&tp.clone());
+                    let tp = match layout.kind {
+                        LayoutKind::Primitive(tp) => tp,
+                        LayoutKind::Struct(items) => Type::Tusize,
+                        LayoutKind::Union(layouts) => Type::Tusize,
                     };
                     args.push(tp)
                 }
                 {
-                    let layout = get_layout(&st, ret.clone());
-                    match layout.layout {
-                        TypeLayout::Simple { tp } => returns.push(tp),
-                        TypeLayout::Array { .. } | TypeLayout::Tuple { .. } => {
-                            args.push(out_a::Type::Tusize)
-                        }
+                    let layout = st.get_layout(&ret.clone());
+                    match layout.kind {
+                        LayoutKind::Primitive(tp) => returns.push(tp),
+                        LayoutKind::Struct(items) => args.push(Type::Tusize),
+                        LayoutKind::Union(layouts) => args.push(Type::Tusize),
                     };
                 }
                 out_a::SymKind::Func { args, returns }
@@ -81,27 +83,28 @@ fn tr_func(st: &SymTable, f: in_a::Func) -> Result<out_a::Func, InternalError> {
     let mut env = Env::new();
     let mut var_needs_stack = HashMap::new();
     for (name, is_mut, tp) in f.args {
-        let layout = get_layout(st, tp);
+        let layout = st.get_layout(&tp);
         let var_id = env.add_var(name);
-        let tp = match layout.layout {
-            TypeLayout::Simple { tp } => tp,
-            TypeLayout::Array { .. } | TypeLayout::Tuple { .. } => {
+        let tp = match layout.kind {
+            LayoutKind::Primitive(tp) => tp,
+            _ => {
                 var_needs_stack.insert(var_id, true);
-                out_a::Type::Tusize
+                Type::Tusize
             }
         };
         args.push((var_id, is_mut, tp))
     }
     {
-        let layout = get_layout(st, f.ret_type);
-        match layout.layout {
-            TypeLayout::Simple { tp } => returns.push(tp),
-            TypeLayout::Array { .. } | TypeLayout::Tuple { .. } => {
+        let layout = st.get_layout(&f.ret_type);
+        match layout.kind {
+            LayoutKind::Primitive(tp) => returns.push(tp),
+            LayoutKind::Struct(items) => {
                 let name = "__ret_var".into();
                 let id = env.add_var(name);
                 var_needs_stack.insert(id, true);
-                args.push((id, false, out_a::Type::Tusize))
+                args.push((id, false, Type::Tusize))
             }
+            LayoutKind::Union(layouts) => todo!(),
         };
     }
 
@@ -125,13 +128,10 @@ fn tr_expr(
 ) -> Result<ast::Expr, InternalError> {
     Ok(match e {
         in_a::Expr::NumLit(n, tp) => {
-            let tp = match get_layout(st, tp).layout {
-                TypeLayout::Simple { tp } => tp,
-                TypeLayout::Array { elem_layout, elems } => unreachable!(),
-                TypeLayout::Tuple {
-                    field_count,
-                    fields,
-                } => unreachable!(),
+            let tp = match st.get_layout(&tp).kind {
+                LayoutKind::Primitive(tp) => tp,
+                LayoutKind::Struct(items) => unreachable!(),
+                LayoutKind::Union(layouts) => unreachable!(),
             };
             out_a::Expr::NumLit(n, tp)
         }
@@ -145,23 +145,19 @@ fn tr_expr(
             let var = out_a::VarRef::Global(id);
             out_a::Expr::Var(var)
         }
-        in_a::Expr::Tuple(exprs, items) => {
+        in_a::Expr::Tuple(exprs, tp) => {
             let mut fields = vec![];
-            let tp = Type::tuple(items);
-            let layout = get_layout(st, tp);
+            let layout = st.get_layout(&tp);
             let mut id = 0;
             for expr in exprs.into_iter() {
                 let expr = tr_expr(env, vns, st, expr)?;
-                let layout = match &layout.layout {
-                    TypeLayout::Simple { tp } => todo!(),
-                    TypeLayout::Array { elem_layout, elems } => todo!(),
-                    TypeLayout::Tuple {
-                        field_count,
-                        fields,
-                    } => fields[id].clone(),
+                let layout = match &layout.kind {
+                    LayoutKind::Primitive(_) => todo!(),
+                    LayoutKind::Struct(items) => items[id].clone(),
+                    LayoutKind::Union(layouts) => todo!(),
                 };
                 id += 1;
-                fields.push((expr, layout))
+                fields.push(expr)
             }
             out_a::Expr::Tuple { fields, layout }
         }
@@ -176,8 +172,8 @@ fn tr_expr(
                 .into_iter()
                 .map(|e| tr_expr(env, vns, st, e))
                 .collect::<Result<_, _>>()?;
-            let args_tp = args_tp.into_iter().map(|tp| get_layout(st, tp)).collect();
-            let ret_tp = get_layout(st, ret_tp);
+            let args_tp = args_tp.into_iter().map(|tp| st.get_layout(&tp)).collect();
+            let ret_tp = st.get_layout(&ret_tp);
             out_a::Expr::FunCall {
                 expr: Box::new(callee),
                 args,
@@ -187,17 +183,16 @@ fn tr_expr(
         }
         in_a::Expr::FieldAccess {
             object,
-            field_name,
+            field_id,
             struct_tp,
             field_tp,
         } => {
             let object = Box::new(tr_expr(env, vns, st, *object)?);
-            let struct_layout = get_layout(st, struct_tp);
-            let element_layout = get_layout(st, field_tp);
+            let struct_layout = st.get_layout(&struct_tp);
+            let element_layout = st.get_layout(&field_tp);
             out_a::Expr::FieldAccess {
                 object,
-                // TODO: calculate actual id XD
-                field_id: 0,
+                field_id,
                 struct_layout,
                 element_layout,
             }
@@ -212,7 +207,7 @@ fn tr_expr(
                 .map(|e| tr_expr(env, vns, st, e))
                 .collect::<Result<_, _>>()?;
             let last_expr = Box::new(tr_expr(env, vns, st, *last_expr)?);
-            let block_tp = get_layout(st, block_tp);
+            let block_tp = st.get_layout(&block_tp);
             out_a::Expr::Block {
                 exprs,
                 last_expr,
@@ -220,18 +215,14 @@ fn tr_expr(
             }
         }
         in_a::Expr::Return { expr, ret_tp } => {
-            let layout = get_layout(st, ret_tp);
+            let layout = st.get_layout(&ret_tp);
             let expr = tr_expr(env, vns, st, *expr)?;
-            match &layout.layout {
-                TypeLayout::Simple { tp } => out_a::Expr::Return {
+            match &layout.kind {
+                LayoutKind::Primitive(tp) => out_a::Expr::Return {
                     expr: Box::new(expr),
                     ret_tp: tp.clone(),
                 },
-                TypeLayout::Array { elem_layout, elems } => todo!(),
-                TypeLayout::Tuple {
-                    field_count,
-                    fields,
-                } => {
+                LayoutKind::Struct(items) => {
                     let ret_v = env.lookup("__ret_var");
                     let lval = Box::new(out_a::Expr::Var(VarRef::Local(ret_v)));
                     out_a::Expr::Assign {
@@ -240,6 +231,7 @@ fn tr_expr(
                         assign_tp: (layout),
                     }
                 }
+                LayoutKind::Union(layouts) => todo!(),
             }
         }
         in_a::Expr::Let {
@@ -249,7 +241,7 @@ fn tr_expr(
             expr,
         } => {
             let id = env.add_var(name);
-            let layout = get_layout(st, tp);
+            let layout = st.get_layout(&tp);
             let expr = tr_expr(env, vns, st, *expr)?;
             vns.insert(id, layout.require_stack());
             out_a::Expr::Let {
@@ -265,22 +257,13 @@ fn tr_expr(
             tp,
         } => {
             let mut fields = vec![];
-            let layout = get_layout(st, tp);
-            let mut id = 0;
-            // TODO: care about order!
-            for (_, expr) in initializers {
+            let layout = st.get_layout(&tp);
+            for (_, (id, expr)) in initializers {
                 let expr = tr_expr(env, vns, st, expr)?;
-                let layout = match &layout.layout {
-                    TypeLayout::Simple { tp } => todo!(),
-                    TypeLayout::Array { elem_layout, elems } => todo!(),
-                    TypeLayout::Tuple {
-                        field_count,
-                        fields,
-                    } => fields[id].clone(),
-                };
-                id += 1;
-                fields.push((expr, layout))
+                fields.push((id, expr))
             }
+            fields.sort_by_key(|(k, _)| *k);
+            let fields = fields.into_iter().map(|(_, e)| e).collect();
             out_a::Expr::Tuple { fields, layout }
         }
         in_a::Expr::Assign {
@@ -290,7 +273,7 @@ fn tr_expr(
         } => {
             let lval = Box::new(tr_expr(env, vns, st, *lval)?);
             let rval = Box::new(tr_expr(env, vns, st, *rval)?);
-            let layout = get_layout(st, assign_tp);
+            let layout = st.get_layout(&assign_tp);
             out_a::Expr::Assign {
                 lval: lval,
                 rval: rval,
@@ -304,7 +287,7 @@ fn tr_expr(
         in_a::Expr::Char(_) => todo!(),
         in_a::Expr::ArrayInitRepeat(expr, n, tp) => {
             let e = tr_expr(env, vns, st, *expr)?;
-            let layout = get_layout(st, tp);
+            let layout = st.get_layout(&tp);
             out_a::Expr::ArrayInitRepeat(Box::new(e), n, layout)
         }
         in_a::Expr::ArrayInitExact(exprs, _) => todo!(),
@@ -331,107 +314,4 @@ fn tr_expr(
             out_a::Expr::Builtin(name, args)
         }
     })
-}
-
-fn get_layout(st: &SymTable, tp: crate::tp::Type) -> out_a::Layout {
-    match tp.view() {
-        crate::tp::TypeView::Unknown => panic!(),
-        crate::tp::TypeView::UVar(uvar) => panic!(),
-        crate::tp::TypeView::NumericUVar(uvar) => panic!(),
-
-        crate::tp::TypeView::TypeApp(tvar, _, _)
-        | crate::tp::TypeView::Var(tvar)
-        | crate::tp::TypeView::NamedVar(tvar, _) => {
-            match tvar.builtin_size() {
-                Some(s) => {
-                    let tp = tvar.builtin_as_mir_type().unwrap();
-                    out_a::Layout {
-                        layout: TypeLayout::Simple { tp },
-                        size: s,
-                        offset: 0,
-                        align: 3,
-                    }
-                }
-                None => {
-                    let info = st.find_type_info(tvar);
-                    match &info.kind {
-                        crate::symtable::TypeKind::Builtin => todo!(),
-                        crate::symtable::TypeKind::Struct {
-                            params,
-                            fields: field_map,
-                        } => {
-                            let mut id = 0;
-                            let mut fields = vec![];
-                            let mut offset = 0;
-                            // TODO: the order might be arbitrary
-                            for (_, tp) in field_map {
-                                let mut layout = get_layout(st, tp.clone());
-                                layout.offset = offset;
-                                id += 1;
-                                offset += layout.size;
-                                fields.push(layout)
-                            }
-                            out_a::Layout {
-                                layout: out_a::TypeLayout::Tuple {
-                                    field_count: id,
-                                    fields,
-                                },
-                                size: offset,
-                                offset: 0,
-                                align: 3,
-                            }
-                        }
-                        crate::symtable::TypeKind::Enum {
-                            params,
-                            constructors,
-                        } => todo!(),
-                    }
-                }
-            }
-        }
-
-        crate::tp::TypeView::Tuple(items) => {
-            let mut id = 0;
-            let mut fields = vec![];
-            let mut offset = 0;
-            for tp in items {
-                let mut layout = get_layout(st, tp.clone());
-                layout.offset = offset;
-                id += 1;
-                offset += layout.size;
-                fields.push(layout)
-            }
-            out_a::Layout {
-                layout: out_a::TypeLayout::Tuple {
-                    field_count: id,
-                    fields,
-                },
-                size: offset,
-                offset: 0,
-                align: 3,
-            }
-        }
-        crate::tp::TypeView::Array(n, tp) => {
-            let layout = get_layout(st, *tp);
-            out_a::Layout {
-                layout: out_a::TypeLayout::Array {
-                    elem_layout: Box::new(layout),
-                    elems: n,
-                },
-                size: 0,
-                offset: 0,
-                align: 3,
-            }
-        }
-        crate::tp::TypeView::Fun(_, _)
-        | crate::tp::TypeView::MutPtr(_)
-        | crate::tp::TypeView::Ptr(_) => out_a::Layout {
-            layout: TypeLayout::Simple {
-                tp: ast::Type::Tusize,
-            },
-            size: 8,
-            offset: 0,
-            align: 3,
-        },
-    }
 }

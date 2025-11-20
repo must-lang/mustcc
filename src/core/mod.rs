@@ -3,7 +3,11 @@ mod env;
 
 use std::mem::transmute;
 
-use crate::{core::env::Env, mir::ast as in_a};
+use crate::{
+    core::env::Env,
+    mir::ast as in_a,
+    symtable::layout::{Layout, LayoutKind},
+};
 use ast as out_a;
 
 pub fn translate(prog: in_a::Program) -> out_a::Program {
@@ -18,10 +22,9 @@ fn tr_func(f: in_a::Func) -> out_a::Func {
     let mut env = Env::new();
     for (id, _, tp) in f.args {
         let id = env.add_var(id);
-        let tp = tr_type(tp);
         args.push((id, tp));
     }
-    let returns = f.returns.into_iter().map(|tp| tr_type(tp)).collect();
+    let returns = f.returns;
 
     let body = tr_expr(&mut env, f.body);
 
@@ -33,13 +36,9 @@ fn tr_func(f: in_a::Func) -> out_a::Func {
     }
 }
 
-fn tr_type(tp: in_a::Type) -> out_a::Type {
-    unsafe { transmute(tp) }
-}
-
 fn tr_expr(env: &mut Env, e: in_a::Expr) -> out_a::Expr {
     match e {
-        in_a::Expr::NumLit(n, tp) => out_a::Expr::Value(ast::Value::Const(n, tr_type(tp))),
+        in_a::Expr::NumLit(n, tp) => out_a::Expr::Value(ast::Value::Const(n, tp)),
         in_a::Expr::StringLit(_, layout) => todo!(),
         in_a::Expr::Tuple { fields, layout } => {
             let ss = out_a::Expr::StackSlot {
@@ -53,12 +52,18 @@ fn tr_expr(env: &mut Env, e: in_a::Expr) -> out_a::Expr {
                 id,
                 e1: Box::new(ss),
             }];
-            for (field, layout) in fields {
+            let layouts = match layout.kind {
+                LayoutKind::Primitive(_) => todo!(),
+                LayoutKind::Struct(items) => items,
+                LayoutKind::Union(layouts) => todo!(),
+            };
+            for (id, field) in fields.into_iter().enumerate() {
                 let field = tr_expr(env, field);
+                let (layout, offset) = layouts[id].clone();
                 let st = out_a::Expr::Store {
                     ptr: Box::new(ast::Expr::Value(s_v.clone())),
                     val: Box::new(field),
-                    offset: layout.offset as i32,
+                    offset,
                 };
                 exprs.push(st);
             }
@@ -75,8 +80,8 @@ fn tr_expr(env: &mut Env, e: in_a::Expr) -> out_a::Expr {
         } => {
             let expr = tr_expr(env, *expr);
 
-            match &ret_tp.layout {
-                in_a::TypeLayout::Simple { tp } => {
+            match &ret_tp.kind {
+                LayoutKind::Primitive(tp) => {
                     let args = args.into_iter().map(|a| tr_expr(env, a)).collect();
                     let sig = make_sig(args_tp, ret_tp);
                     out_a::Expr::FunCall {
@@ -85,13 +90,10 @@ fn tr_expr(env: &mut Env, e: in_a::Expr) -> out_a::Expr {
                         sig,
                     }
                 }
-                in_a::TypeLayout::Array { elem_layout, elems } => todo!(),
-                in_a::TypeLayout::Tuple {
-                    field_count,
-                    fields,
-                } => {
+                LayoutKind::Struct(_) => {
                     todo!("sret is not implemented yet")
                 }
+                LayoutKind::Union(layouts) => todo!(),
             }
         }
         in_a::Expr::FieldAccess {
@@ -99,20 +101,22 @@ fn tr_expr(env: &mut Env, e: in_a::Expr) -> out_a::Expr {
             field_id,
             struct_layout,
             element_layout,
-        } => match element_layout.layout {
-            in_a::TypeLayout::Simple { tp } => {
+        } => match struct_layout.kind {
+            LayoutKind::Primitive(tp) => todo!(),
+            LayoutKind::Struct(items) => {
+                let (layout, offset) = items[field_id].clone();
                 let ptr = Box::new(tr_expr(env, *object));
-                out_a::Expr::Load {
-                    tp: tr_type(tp),
-                    ptr,
-                    offset: element_layout.offset as i32,
+                match layout.kind {
+                    LayoutKind::Primitive(tp) => out_a::Expr::Load {
+                        tp,
+                        ptr,
+                        offset: offset,
+                    },
+                    LayoutKind::Struct(items) => todo!(),
+                    LayoutKind::Union(layouts) => todo!(),
                 }
             }
-            in_a::TypeLayout::Array { elem_layout, elems } => todo!(),
-            in_a::TypeLayout::Tuple {
-                field_count,
-                fields,
-            } => todo!(),
+            LayoutKind::Union(layouts) => todo!(),
         },
         in_a::Expr::Block {
             exprs,
@@ -180,25 +184,19 @@ fn tr_expr(env: &mut Env, e: in_a::Expr) -> out_a::Expr {
     }
 }
 
-fn make_sig(args_tp: Vec<in_a::Layout>, ret_tp: in_a::Layout) -> ast::FnSig {
+fn make_sig(args_tp: Vec<Layout>, ret_tp: Layout) -> ast::FnSig {
     let mut params = vec![];
     let mut returns = vec![];
-    match ret_tp.layout {
-        in_a::TypeLayout::Simple { tp } => returns.push(tr_type(tp)),
-        in_a::TypeLayout::Array { elem_layout, elems } => todo!(),
-        in_a::TypeLayout::Tuple {
-            field_count,
-            fields,
-        } => params.push(ast::Type::Tusize),
+    match ret_tp.kind {
+        LayoutKind::Primitive(tp) => returns.push(tp),
+        LayoutKind::Struct(items) => todo!(),
+        LayoutKind::Union(layouts) => todo!(),
     }
     for arg in args_tp {
-        match arg.layout {
-            in_a::TypeLayout::Simple { tp } => params.push(tr_type(tp)),
-            in_a::TypeLayout::Array { elem_layout, elems } => todo!(),
-            in_a::TypeLayout::Tuple {
-                field_count,
-                fields,
-            } => todo!(),
+        match arg.kind {
+            LayoutKind::Primitive(tp) => params.push(tp),
+            LayoutKind::Struct(items) => todo!(),
+            LayoutKind::Union(layouts) => todo!(),
         }
     }
     ast::FnSig { params, returns }
