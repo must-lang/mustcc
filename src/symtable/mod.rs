@@ -93,9 +93,14 @@ impl SymTable {
                             layouts.push((layout, curr_offset as i32));
                             curr_offset += total_size;
                         }
+                        let struct_align = layouts
+                            .iter()
+                            .map(|(layout, _)| layout.align)
+                            .max()
+                            .unwrap_or(1);
                         Layout {
                             size: curr_offset,
-                            align: 4,
+                            align: struct_align,
                             kind: LayoutKind::Struct(layouts),
                         }
                     }
