@@ -30,7 +30,7 @@ impl SymTable {
         let (_, cyclic) = topo_sort(dep_tree);
         for tv in cyclic {
             let info = tvar_map.get(&tv).unwrap();
-            ctx.report(error::resursive_types(&info.pos));
+            ctx.report(error::recursive_types(&info.pos));
         }
         Self { node_map, tvar_map }
     }

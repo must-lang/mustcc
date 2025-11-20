@@ -3,7 +3,7 @@ use crate::{
     error::diagnostic::{Diagnostic, Label},
 };
 
-pub fn resursive_types(pos: &Position) -> Diagnostic {
+pub fn recursive_types(pos: &Position) -> Diagnostic {
     Diagnostic::error(pos)
         .with_label(Label::new(pos).with_msg(Box::new(move || format!("recursive type"))))
 }
