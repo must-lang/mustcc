@@ -1,5 +1,8 @@
 use std::{
-    collections::BTreeMap, fs::read_to_string, hint::unreachable_unchecked, path::PathBuf,
+    collections::BTreeMap,
+    fs::read_to_string,
+    hint::unreachable_unchecked,
+    path::{Path, PathBuf},
     sync::Arc,
 };
 
@@ -13,14 +16,14 @@ pub mod ast;
 lalrpop_util::lalrpop_mod!(pub parser, "/parser/parser.rs");
 
 /// Parses the entire `src` directory ignoring files without „mst” extension.
-///
-/// Expects that CWD is set to project root.
-pub fn parse_project(ctx: &mut Context) -> Result<ast::Program, InternalError> {
-    let mut path = PathBuf::from("src");
+pub fn parse_project(root: &Path, ctx: &mut Context) -> Result<ast::Program, InternalError> {
+    let mut path = PathBuf::from(root);
+    path.push("src");
     let files = get_files(&mut path)?;
     let mut file_map = BTreeMap::new();
     for file in files {
-        let module_path = get_module_path(&file)?;
+        let path = file.strip_prefix(root).unwrap();
+        let module_path = get_module_path(path)?;
         let parsed_file = parse_file(ctx, file)?;
         if let Some(module) = parsed_file {
             if let Some(_) = file_map.insert(module_path, module) {
@@ -35,7 +38,7 @@ pub fn parse_project(ctx: &mut Context) -> Result<ast::Program, InternalError> {
 /// Return the module path of file path.
 ///
 /// Both `bar.mst` and `bar/mod.mst` result in path `[bar]`.
-fn get_module_path(path: &PathBuf) -> Result<Vec<String>, InternalError> {
+fn get_module_path(path: &Path) -> Result<Vec<String>, InternalError> {
     let mut module_path = vec![];
     let iter: Vec<&str> = path
         .components()

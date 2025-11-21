@@ -1,6 +1,4 @@
 /target
-tests
 output.txt
-**/*.c
 **/*.o
 **/*.out
