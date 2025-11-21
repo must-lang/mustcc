@@ -2,6 +2,8 @@ use std::path::PathBuf;
 
 use clap::Parser;
 
+use crate::error::InternalError;
+
 mod codegen;
 mod common;
 mod core;
@@ -36,10 +38,7 @@ pub struct Cli {
 }
 
 /// Entry point, parses command line arguments and starts the compiler pipeline.
-pub fn main() {
+pub fn main() -> Result<(), InternalError> {
     let cli = Cli::parse();
-    std::env::set_current_dir(&cli.dir).unwrap();
-    if let Err(e) = driver::run(cli) {
-        eprintln!("Internal error: {:#?}", e);
-    }
+    driver::run(cli)
 }

@@ -1,0 +1,14 @@
+
+mod a {
+    pub mod b {
+        pub fn test() -> i32 {
+            42
+        }
+    }
+}
+
+@extern
+@no_mangle
+fn main() -> i32 {
+    a::b::test()
+}

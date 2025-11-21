@@ -1,3 +1,5 @@
+use std::process::exit;
+
 use crate::{
     Cli, codegen, core,
     error::{InternalError, ariadne_renderer::AriadneRenderer, context::Context},
@@ -10,7 +12,7 @@ use crate::{
 pub fn run(config: Cli) -> Result<(), InternalError> {
     let mut ctx = Context::init(Box::new(AriadneRenderer::new()));
 
-    let prog = parse_project(&mut ctx)?;
+    let prog = parse_project(&config.dir, &mut ctx)?;
 
     if config.print_input_ast {
         println!("{:#?}", prog);
@@ -28,7 +30,7 @@ pub fn run(config: Cli) -> Result<(), InternalError> {
 
     if error_count != 0 {
         println!("{} errors occurred, compilation aborted.", error_count);
-        return Ok(());
+        exit(1)
     }
 
     if config.typecheck_only {

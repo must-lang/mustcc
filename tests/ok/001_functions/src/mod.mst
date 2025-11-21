@@ -1,0 +1,33 @@
+
+pub fn add(lhs: i32, rhs: i32) -> i32 {
+    @iadd(lhs, rhs)
+}
+
+struct S {
+    a: i32,
+    b: i32,
+}
+
+@extern
+@no_mangle
+fn main() -> i32 {
+    let x = 42;
+    let y = f(x, 13, g(s(), 69));
+    add(x, y)
+}
+
+fn g(x: i32, z: i32) -> i32 {
+    x
+}
+
+fn f(x: i32, y: i32, z: i32) -> i32 {
+    z
+}
+
+fn s() -> i32 {
+    let s = S {
+        a = 75,
+        b = 313,
+    };
+    s.a
+}
