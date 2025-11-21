@@ -16,8 +16,6 @@ pub mod ast;
 lalrpop_util::lalrpop_mod!(pub parser, "/parser/parser.rs");
 
 /// Parses the entire `src` directory ignoring files without „mst” extension.
-///
-/// Expects that CWD is set to project root.
 pub fn parse_project(root: &Path, ctx: &mut Context) -> Result<ast::Program, InternalError> {
     let mut path = PathBuf::from(root);
     path.push("src");
